@@ -81,7 +81,7 @@ bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
-# 총알 생성 (사방)
+# 총알 생성
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
     size = random.uniform(6,14)
@@ -128,7 +128,7 @@ def update(dt):
             bullets.remove(b)
             score+=1
 
-    # 충돌 체크 (좌우 20%, 상하 50%)
+    # 충돌 체크
     for b in bullets:
         rx=player['x']-player['w']/2
         ry=player['y']-player['h']/2
@@ -138,7 +138,6 @@ def update(dt):
         dy=(b['y']-closest_y)*0.5
         if dx*dx+dy*dy<=b['r']*b['r']:
             running=False
-            show_game_over()
             break
 
 # 그리기
@@ -164,9 +163,12 @@ def draw():
             ctx.fill()
     document['score'].text=f"점수: {score}"
 
+# 게임 루프
 def game_loop():
     update(16)
     draw()
+    if not running:
+        show_game_over()  # 게임 오버 시 계속 표시
 
 # 키보드
 def on_keydown(ev):
@@ -211,25 +213,21 @@ def start_game(ev=None):
 
 document['start'].bind('click',start_game)
 
-# ==== 수정된 게임 오버 함수 (중앙 정렬) ====
+# ==== 게임 오버 함수 (중앙 정렬) ====
 def show_game_over():
     ctx.fillStyle = 'rgba(0,0,0,0.7)'
     ctx.fillRect(0, 0, STAGE_W, STAGE_H)
     ctx.fillStyle = '#fff'
     ctx.textAlign = 'center'
 
-    # 랭킹 및 메시지 데이터 준비
     messages = []
 
-    # 게임 오버
     ctx.font = '48px sans-serif'
     messages.append(('게임 오버', 48))
 
-    # 최종 점수
     ctx.font = '24px sans-serif'
     messages.append((f'최종 점수: {score}', 24))
 
-    # 이름 입력
     name = window.prompt("게임 끝! 이름을 입력하세요:", "플레이어")
     if not name: name = "익명"
 
@@ -244,25 +242,21 @@ def show_game_over():
     ranking = ranking[:5]
     window.localStorage.setItem('ranking', json.dumps(ranking))
 
-    # 랭킹 메시지 추가
     messages.append(("🏆 상위 5명", 20))
     for i, entry in enumerate(ranking):
         messages.append((f"{i+1}. {entry['name']} : {entry['score']}", 20))
 
-    # 5등 안에 못 든 경우
     if not any(entry['name'] == name and entry['score'] == score for entry in ranking):
         messages.append(("5등 안에 못 들었습니다", 20))
 
-    # 전체 메시지 높이 계산
-    total_height = sum(font_size + 10 for _, font_size in messages)  # 10px 간격
-    start_y = (STAGE_H - total_height) / 2  # 중앙 기준 시작점
+    total_height = sum(font_size + 10 for _, font_size in messages)
+    start_y = (STAGE_H - total_height) / 2
 
-    # 메시지 출력
     y = start_y
     for text, font_size in messages:
         ctx.font = f'{font_size}px sans-serif'
         ctx.fillText(text, STAGE_W / 2, y + font_size)
-        y += font_size + 10  # 다음 메시지 위치
+        y += font_size + 10
 
 # 루프
 def all_images_loaded():
