@@ -137,8 +137,8 @@ def update(dt):
         dx=(b['x']-closest_x)*0.2
         dy=(b['y']-closest_y)*0.5
         if dx*dx+dy*dy<=b['r']*b['r']:
+            global running
             running=False
-            show_game_over()
             break
 
 # 그리기
@@ -164,9 +164,25 @@ def draw():
             ctx.fill()
     document['score'].text=f"점수: {score}"
 
+def show_game_over():
+    ctx.clearRect(0,0,STAGE_W,STAGE_H)
+    ctx.fillStyle='rgba(0,0,0,0.7)'
+    ctx.fillRect(0,0,STAGE_W,STAGE_H)
+    ctx.fillStyle='#fff'
+    ctx.textAlign='center'
+    ctx.textBaseline='middle'
+    center_y = STAGE_H/2
+    ctx.font='48px sans-serif'
+    ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
+    ctx.font='24px sans-serif'
+    ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
+
 def game_loop():
-    update(16)
-    draw()
+    if running:
+        update(16)
+        draw()
+    else:
+        show_game_over()
 
 # 키보드
 def on_keydown(ev):
@@ -210,23 +226,6 @@ def start_game(ev=None):
     player['y']=STAGE_H/2
 
 document['start'].bind('click',start_game)
-
-# 🔹 수정된 게임 오버 화면 (정중앙 표시)
-def show_game_over():
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'
-    ctx.fillRect(0,0,STAGE_W,STAGE_H)
-
-    ctx.fillStyle = '#fff'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-
-    center_y = STAGE_H / 2
-
-    ctx.font = '48px sans-serif'
-    ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
-
-    ctx.font = '24px sans-serif'
-    ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
 
 # 루프
 def all_images_loaded():
