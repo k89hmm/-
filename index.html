@@ -66,6 +66,11 @@ canvas {
     width: 200px;
     margin-bottom: 8px;
 }
+#overlay .buttons-container {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 10px;
+}
 #overlay button {
     background:#2b6df6;
     color:white;
@@ -74,7 +79,6 @@ canvas {
     border-radius:6px;
     cursor:pointer;
     font-size:16px;
-    margin:0 5px 10px 5px;
 }
 #overlay #top-scores {
     font-size: 18px;
@@ -120,11 +124,11 @@ window.showTopScores = async function(){
         const scoresRef = query(ref(db, 'ranking'), orderByChild('score'), limitToLast(5));
         const snapshot = await get(scoresRef);
         const list = [];
-        snapshot.forEach(child => { list.append(child.val()) if hasattr(list,'append') else list.append(child.val()) })
+        snapshot.forEach(child => { list.push(child.val()); });
         list.sort((a,b)=>b.score - a.score);
 
         let html = "<h3>🏆 상위 5위</h3>";
-        list.forEach((item,i)=>{ html += f"{i+1}. {item.name} - {item.score}<br>"; });
+        list.forEach((item,i)=>{ html += `${i+1}. ${item.name} - ${item.score}<br>`; });
         const div = document.getElementById("top-scores");
         div.innerHTML = html;
     } catch(err) {
@@ -145,14 +149,14 @@ window.showTopScores = async function(){
 </div>
 <canvas id="game" width="480" height="640"></canvas>
 
-<!-- ✅ 오버레이: 게임 오버 + 이름 입력 + 점수 제출 + 재시작 + 상위 5위 -->
+<!-- ✅ 오버레이: 게임 오버 + 이름 입력 + 상위 5위 + 재시작 버튼 -->
 <div id="overlay">
   <h2>게임 오버</h2>
   <p id="final-score">최종 점수: 0</p>
-  <div>
-    <input type="text" id="player-name" placeholder="이름 입력">
-    <button id="submit-name">점수 제출</button>
-    <button id="restart-game">재시작</button>
+  <input type="text" id="player-name" placeholder="이름 입력">
+  <div class="buttons-container">
+      <button id="submit-name">점수 제출</button>
+      <button id="restart-game">재시작</button>
   </div>
   <div id="top-scores"></div>
 </div>
@@ -178,7 +182,7 @@ player_loaded = False
 bullet_loaded = False
 bg_loaded = False
 
-# ✅ 이미지 로딩
+# 이미지 로딩
 player_img = html.IMG(); player_img.src='player.png'
 player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
 bullet_img = html.IMG(); bullet_img.src='bullet.png'
@@ -261,11 +265,13 @@ def submit_name(ev):
 
 document['submit-name'].bind('click', submit_name)
 
-# ✅ 재시작 버튼
-def restart_game(ev):
+def restart_game(ev=None):
+    global running, bullets, score, last_spawn, difficulty_timer, player, game_started
+    bullets=[]; score=0; last_spawn=0; difficulty_timer=0
+    running=True; game_started=True
+    player['x']=STAGE_W/2; player['y']=STAGE_H/2
     document['overlay'].style.display = 'none'
     document['player-name'].value = ''
-    start_game()
 
 document['restart-game'].bind('click', restart_game)
 
