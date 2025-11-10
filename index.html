@@ -7,38 +7,14 @@
   <style>
     body {
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      margin: 0;
-      background: #111;
-      color: #eee;
-      overflow: hidden; /* 모바일 스크롤 방지 */
+      display:flex; flex-direction:column; align-items:center; gap:12px; margin:0; background:#111; color:#eee;
+      overflow:hidden; touch-action:none;
     }
-    #controls {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    canvas {
-      border-radius: 8px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.6);
-      background: #0b1220;
-      touch-action: none; /* 모바일 터치 스크롤 방지 */
-    }
-    button {
-      padding: 8px 12px;
-      border-radius: 6px;
-      border: none;
-      background: #2b6df6;
-      color: white;
-      cursor: pointer;
-    }
-    #score {
-      font-weight: 700;
-    }
+    h1 {margin-top:20px;}
+    #controls {display:flex; gap:12px; align-items:center;}
+    button {padding:8px 12px; border-radius:6px; border:none; background:#2b6df6; color:white; cursor:pointer;}
+    #score {font-weight:700;}
+    canvas {border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,0.6);}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
@@ -52,95 +28,98 @@
   <canvas id="game" width="480" height="640"></canvas>
 
   <script type="text/python3">
-from browser import document, html, timer
-import math, random
+from browser import document, html, timer, window
+import math, random, json
 
-# --- 캔버스 ---
 CANVAS = document['game']
 ctx = CANVAS.getContext('2d')
 W, H = CANVAS.width, CANVAS.height
 
-# --- 플레이어 ---
+# --- 게임 상태 ---
 player = {'x': W/2, 'y': H/2, 'w': 50, 'h': 50, 'speed': 6}
-player_loaded = False
 player_img = html.IMG()
-player_img.src = 'player.png'  # PNG로 변경
-player_img.width = player['w']
-player_img.height = player['h']
-def on_player_loaded(ev):
+player_img.src = 'player.png'
+player_loaded = False
+
+def player_img_loaded(ev):
     global player_loaded
     player_loaded = True
-player_img.bind('load', on_player_loaded)
+player_img.bind('load', player_img_loaded)
 
-# --- 배경 ---
-bg_img = html.IMG()
-bg_img.src = 'background.png'  # PNG로 변경
-bg_loaded = False
-def on_bg_loaded(ev):
-    global bg_loaded
-    bg_loaded = True
-bg_img.bind('load', on_bg_loaded)
-
-# --- 총알 ---
 bullets = []
 bullet_img = html.IMG()
-bullet_img.src = 'bullet.png'  # PNG로 변경
+bullet_img.src = 'bullet.png'
 bullet_loaded = False
-def on_bullet_loaded(ev):
+def bullet_img_loaded(ev):
     global bullet_loaded
     bullet_loaded = True
-bullet_img.bind('load', on_bullet_loaded)
+bullet_img.bind('load', bullet_img_loaded)
 
-# --- 게임 상태 ---
-keys = {'left':False,'right':False,'up':False,'down':False}
-running = False
-score = 0
+background_img = html.IMG()
+background_img.src = 'background.png'
+background_loaded = False
+def background_loaded(ev):
+    global background_loaded
+    background_loaded = True
+background_img.bind('load', background_loaded)
+
 spawn_interval = 700
 last_spawn = 0
+running = False
+paused = False
+score = 0
+keys = {'left': False, 'right': False, 'up': False, 'down': False}
 difficulty_timer = 0
+game_over_flag = False
 
-# --- 총알 스폰 (사방에서) ---
+# --- 랭킹 ---
+ranking_key = "bullet_game_ranking"
+ranking_list = []
+
+def load_ranking():
+    data = window.localStorage.getItem(ranking_key)
+    if data:
+        try:
+            return json.loads(data)
+        except:
+            return []
+    else:
+        return []
+
+def save_ranking(rank_list):
+    window.localStorage.setItem(ranking_key, json.dumps(rank_list))
+
+def update_ranking():
+    global ranking_list
+    ranking_list = load_ranking()
+    ranking_list = sorted(ranking_list, key=lambda x: x['score'], reverse=True)[:5]
+    save_ranking(ranking_list)
+
+# --- 스폰 ---
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
-    size = random.uniform(6,14)
-    speed = random.uniform(2,4) + (score/200)
-    if side == 'top':
-        x = random.uniform(0,W)
-        y = -size
-        vx = random.uniform(-1,1)
-        vy = speed
-    elif side == 'bottom':
-        x = random.uniform(0,W)
-        y = H+size
-        vx = random.uniform(-1,1)
-        vy = -speed
-    elif side == 'left':
-        x = -size
-        y = random.uniform(0,H)
-        vx = speed
-        vy = random.uniform(-1,1)
-    else:  # right
-        x = W+size
-        y = random.uniform(0,H)
-        vx = -speed
-        vy = random.uniform(-1,1)
-    bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
+    size = random.uniform(18,30)  # 원본 이미지 기준 확대
+    speed = random.uniform(2.0, 4.2) + (score/200.0)
+    if side=='top':
+        bullets.append({'x': random.uniform(0,W), 'y':-size, 'vx':0, 'vy':speed, 'size':size})
+    elif side=='bottom':
+        bullets.append({'x': random.uniform(0,W), 'y':H+size, 'vx':0, 'vy':-speed, 'size':size})
+    elif side=='left':
+        bullets.append({'x': -size, 'y': random.uniform(0,H), 'vx':speed, 'vy':0, 'size':size})
+    else:
+        bullets.append({'x': W+size, 'y': random.uniform(0,H), 'vx':-speed, 'vy':0, 'size':size})
 
 # --- 업데이트 ---
 def update(dt):
-    global last_spawn, score, running, difficulty_timer
-    if not running:
+    global last_spawn, score, running, difficulty_timer, game_over_flag
+    if not running or paused or game_over_flag:
         return
+
     last_spawn += dt
     difficulty_timer += dt
     if last_spawn >= spawn_interval:
         last_spawn = 0
         spawn_bullet()
-    if difficulty_timer >= 5000:
-        difficulty_timer = 0
-        for b in bullets:
-            b['vx'] *= 1.5
-            b['vy'] *= 1.5
 
     if keys['left']: player['x'] -= player['speed']
     if keys['right']: player['x'] += player['speed']
@@ -153,63 +132,58 @@ def update(dt):
     for b in list(bullets):
         b['x'] += b['vx']
         b['y'] += b['vy']
-        if b['x'] < -50 or b['x'] > W+50 or b['y'] < -50 or b['y'] > H+50:
+        if b['x'] < -b['size'] or b['x'] > W+b['size'] or b['y'] < -b['size'] or b['y'] > H+b['size']:
             bullets.remove(b)
             score += 1
 
-    # 히트박스 (0.5배)
+    # 히트 판정 (좌우 20%, 위아래 50%)
     for b in bullets:
-        dx = b['x'] - player['x']
-        dy = b['y'] - player['y']
-        if dx*dx + dy*dy <= (b['r'] + player['w']/4)**2:
-            running = False
+        dx = max(abs(player['x'] - b['x']) - player['w']/2, 0)
+        dy = max(abs(player['y'] - b['y']) - player['h']/2, 0)
+        if dx*0.2*dx*0.2 + dy*0.5*dy*0.5 <= (b['size']/2)**2:
+            game_over_flag = True
+            game_over()
 
 # --- 그리기 ---
 def draw():
     ctx.clearRect(0,0,W,H)
-    if bg_loaded:
-        ctx.drawImage(bg_img,0,0,W,H)
+    if background_loaded:
+        ctx.drawImage(background_img,0,0,W,H)
     else:
-        ctx.fillStyle = '#0b1220'
+        ctx.fillStyle="#111"
         ctx.fillRect(0,0,W,H)
+
+    if player_loaded:
+        draw_w = player['w']/2
+        draw_h = player_img.naturalHeight/player_img.naturalWidth * draw_w
+        ctx.drawImage(player_img, player['x']-draw_w/2, player['y']-draw_h/2, draw_w, draw_h)
+    else:
+        ctx.fillStyle='#66ff99'
+        ctx.fillRect(player['x']-player['w']/4, player['y']-player['h']/4, player['w']/2, player['h']/2)
 
     for b in bullets:
         if bullet_loaded:
-            ctx.drawImage(bullet_img,b['x']-b['r'],b['y']-b['r'],b['r']*2,b['r']*2)
+            draw_w = b['size']
+            draw_h = bullet_img.naturalHeight/bullet_img.naturalWidth * draw_w
+            ctx.drawImage(bullet_img, b['x']-draw_w/2, b['y']-draw_h/2, draw_w, draw_h)
         else:
-            ctx.beginPath()
-            ctx.arc(b['x'],b['y'],b['r'],0,2*math.pi)
             ctx.fillStyle='#ff6b6b'
+            ctx.beginPath()
+            ctx.arc(b['x'],b['y'],b['size']/2,0,2*math.pi)
             ctx.fill()
 
-    if player_loaded:
-        ctx.drawImage(player_img, player['x']-player['w']/2, player['y']-player['h']/2, player['w'], player['h'])
-    else:
-        ctx.fillStyle='#66ff99'
-        ctx.fillRect(player['x']-player['w']/2, player['y']-player['h']/2, player['w'], player['h'])
-
     document['score'].text = f"점수: {score}"
-
-    if not running:
-        draw_game_over()
-
-# --- 게임 오버 화면 ---
-def draw_game_over():
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'
-    ctx.fillRect(0,0,W,H)
-    ctx.fillStyle = '#fff'
-    ctx.font = '48px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText('게임 오버', W/2, H/2 - 30)
-    ctx.font = '24px sans-serif'
-    ctx.fillText(f'최종 점수: {score}', W/2, H/2 + 20)
 
 # --- 게임 루프 ---
 def game_loop():
     update(16)
     draw()
 
-# --- 키 입력 ---
+def loop(timestamp):
+    game_loop()
+    timer.request_animation_frame(loop)
+
+# --- 키보드 ---
 def on_keydown(ev):
     if ev.key in ('ArrowLeft','a'): keys['left']=True
     if ev.key in ('ArrowRight','d'): keys['right']=True
@@ -222,37 +196,51 @@ def on_keyup(ev):
     if ev.key in ('ArrowUp','w'): keys['up']=False
     if ev.key in ('ArrowDown','s'): keys['down']=False
 
-# --- 터치 이동 ---
+# --- 터치 ---
+touch_pos = {'x':player['x'], 'y':player['y']}
 def on_touch(ev):
     ev.preventDefault()
-    touch = ev.touches[0]
-    rect = CANVAS.getBoundingClientRect()
-    player['x'] = touch.clientX - rect.left
-    player['y'] = touch.clientY - rect.top
-
-CANVAS.bind('touchstart', on_touch)
-CANVAS.bind('touchmove', on_touch)
+    t = ev.touches[0]
+    touch_pos['x']=t.clientX
+    touch_pos['y']=t.clientY
+    player['x']=touch_pos['x']/CANVAS.clientWidth*W
+    player['y']=touch_pos['y']/CANVAS.clientHeight*H
 
 # --- 게임 시작 ---
 def start_game(ev=None):
-    global running, bullets, score, last_spawn, difficulty_timer, player
-    bullets = []
-    score = 0
-    last_spawn = 0
-    difficulty_timer = 0
-    running = True
-    player['x'] = W/2
-    player['y'] = H/2
+    global running, bullets, score, last_spawn, difficulty_timer, player, game_over_flag
+    bullets=[]
+    score=0
+    last_spawn=0
+    difficulty_timer=0
+    game_over_flag=False
+    player['x'], player['y'] = W/2,H/2
+    running=True
 
-# --- 이벤트 ---
+def game_over():
+    global running
+    running=False
+    update_ranking()
+    ctx.fillStyle='rgba(0,0,0,0.5)'
+    ctx.fillRect(0,0,W,H)
+    ctx.fillStyle='#fff'
+    ctx.textAlign='center'
+    ctx.font='48px sans-serif'
+    ctx.fillText('게임 오버',W/2,50)
+    ctx.font='24px sans-serif'
+    ctx.fillText(f'점수: {score}',W/2,100)
+    # 랭킹 표시
+    for i,entry in enumerate(ranking_list):
+        ctx.fillText(f"{i+1}. {entry['name']} : {entry['score']}",W/2,150+i*30)
+    if len(ranking_list)==5 and score<ranking_list[-1]['score']:
+        ctx.fillText("5등 안에 못 들었습니다", W/2,150+5*30)
+
+# --- 바인딩 ---
 document.bind('keydown', on_keydown)
 document.bind('keyup', on_keyup)
+document.bind('touchstart', on_touch)
+document.bind('touchmove', on_touch)
 document['start'].bind('click', start_game)
-
-# --- 애니메이션 프레임 ---
-def loop(timestamp):
-    game_loop()
-    timer.request_animation_frame(loop)
 
 timer.request_animation_frame(loop)
   </script>
