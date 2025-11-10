@@ -221,30 +221,7 @@ def show_game_over():
     ctx.fillText('게임 오버',STAGE_W/2,STAGE_H/2-60)
     ctx.font='24px sans-serif'
     ctx.fillText(f'최종 점수: {score}',STAGE_W/2,STAGE_H/2-20)
-
-    # 이름 입력
-    name = window.prompt("게임 끝! 이름을 입력하세요:", "플레이어")
-    if not name: name="익명"
-
-    ranking_json = window.localStorage.getItem('ranking')
-    if ranking_json:
-        ranking = json.loads(ranking_json)
-    else:
-        ranking = []
-
-    ranking.append({'name':name,'score':score})
-    ranking = sorted(ranking,key=lambda x:x['score'],reverse=True)
-    ranking = ranking[:5]
-    window.localStorage.setItem('ranking',json.dumps(ranking))
-
-    ctx.font='20px sans-serif'
-    ctx.fillText("🏆 상위 5명", STAGE_W/2, STAGE_H/2+40)
-    for i,entry in enumerate(ranking):
-        ctx.fillText(f"{i+1}. {entry['name']} : {entry['score']}",STAGE_W/2,STAGE_H/2 + 70 + i*30)
-
-    if not any(entry['name']==name and entry['score']==score for entry in ranking):
-        ctx.fillText("5등 안에 못 들었습니다", STAGE_W/2, STAGE_H/2 + 70 + 5*30)
-
+    
 # 루프
 def all_images_loaded():
     return player_img.complete and bullet_img.complete and bg_img.complete
