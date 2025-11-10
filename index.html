@@ -64,7 +64,7 @@ bullets = []
 spawn_interval = 700
 last_spawn = 0
 running = False
-game_started = False
+game_started = False  # 🔹 게임 시작 여부 플래그
 score = 0
 keys = {'left':False,'right':False,'up':False,'down':False}
 difficulty_timer = 0
@@ -164,23 +164,27 @@ def draw():
             ctx.fill()
     document['score'].text=f"점수: {score}"
 
-# 게임 오버
+# 🔹 게임 오버 화면 (게임 시작 후만 표시, 정중앙)
 def show_game_over():
-    ctx.fillStyle='rgba(0,0,0,0.7)'
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'
     ctx.fillRect(0,0,STAGE_W,STAGE_H)
-    ctx.fillStyle='#fff'
-    ctx.font='48px sans-serif'
-    ctx.textAlign='center'
-    ctx.fillText('게임 오버',STAGE_W/2,STAGE_H/2-24)
-    ctx.font='24px sans-serif'
-    ctx.fillText(f'최종 점수: {score}',STAGE_W/2,STAGE_H/2+24)
+
+    ctx.fillStyle = '#fff'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    center_y = STAGE_H / 2
+
+    ctx.font = '48px sans-serif'
+    ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
+
+    ctx.font = '24px sans-serif'
+    ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
 
 # 게임 루프
 def game_loop():
-    if running:
-        update(16)
-        draw()
-    elif game_started:
+    update(16)
+    draw()
+    if not running and game_started:
         show_game_over()
 
 # 키보드
