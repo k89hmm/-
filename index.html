@@ -172,6 +172,8 @@ last_spawn = 0
 running = False
 game_started = False
 score = 0
+last_score_checkpoint = 0  # 점수 10점 단위 체크
+extra_bullets_per_10_score = 2
 keys = {'left':False,'right':False,'up':False,'down':False}
 difficulty_timer = 0
 player_loaded = False
@@ -201,24 +203,32 @@ def spawn_bullet():
     bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
 
 def update(dt):
-    global last_spawn, score, running, difficulty_timer
+    global last_spawn, score, running, difficulty_timer, last_score_checkpoint
     if not running: return
     last_spawn += dt
     difficulty_timer += dt
-    if last_spawn>=spawn_interval: last_spawn=0; spawn_bullet()
-    if difficulty_timer>=5000:
-        difficulty_timer=0
-        for b in bullets: b['vx']*=1.5; b['vy']*=1.5
-    if keys['left']: player['x']-=player['speed']
-    if keys['right']: player['x']+=player['speed']
-    if keys['up']: player['y']-=player['speed']
-    if keys['down']: player['y']+=player['speed']
-    player['x']=max(player['w']/2,min(STAGE_W-player['w']/2,player['x']))
-    player['y']=max(player['h']/2,min(STAGE_H-player['h']/2,player['y']))
+    if last_spawn >= spawn_interval: last_spawn = 0; spawn_bullet()
+    if difficulty_timer >= 5000:
+        difficulty_timer = 0
+        for b in bullets: b['vx'] *= 1.5; b['vy'] *= 1.5
+    if keys['left']: player['x'] -= player['speed']
+    if keys['right']: player['x'] += player['speed']
+    if keys['up']: player['y'] -= player['speed']
+    if keys['down']: player['y'] += player['speed']
+    player['x'] = max(player['w']/2, min(STAGE_W - player['w']/2, player['x']))
+    player['y'] = max(player['h']/2, min(STAGE_H - player['h']/2, player['y']))
+    
     for b in list(bullets):
-        b['x']+=b['vx']; b['y']+=b['vy']
-        if b['x']<-50 or b['x']>STAGE_W+50 or b['y']<-50 or b['y']>STAGE_H+50:
-            bullets.remove(b); score+=1
+        b['x'] += b['vx']; b['y'] += b['vy']
+        if b['x'] < -50 or b['x'] > STAGE_W + 50 or b['y'] < -50 or b['y'] > STAGE_H + 50:
+            bullets.remove(b); score += 1
+            
+            # ✅ 점수 10점 단위로 bullet 수 증가
+            if score // 10 > last_score_checkpoint // 10:
+                for _ in range(extra_bullets_per_10_score):
+                    spawn_bullet()
+            last_score_checkpoint = score
+
     for b in bullets:
         # ✅ 히트박스 기준: player 가로 1/2, bullet 가로세로 1/4
         player_hit_w = player['w']/2
@@ -320,8 +330,8 @@ document['game'].bind('touchstart', on_touch)
 document['game'].bind('touchmove', on_touch)
 
 def start_game(ev=None):
-    global running, bullets, score, last_spawn, difficulty_timer, player, game_started
-    bullets=[]; score=0; last_spawn=0; difficulty_timer=0
+    global running, bullets, score, last_spawn, difficulty_timer, player, game_started, last_score_checkpoint
+    bullets=[]; score=0; last_spawn=0; difficulty_timer=0; last_score_checkpoint=0
     running=True; game_started=True
     player['x']=STAGE_W/2; player['y']=STAGE_H/2
     document['overlay'].style.display = 'none'
