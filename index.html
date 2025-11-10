@@ -211,20 +211,27 @@ def start_game(ev=None):
 
 document['start'].bind('click',start_game)
 
-# 게임 오버 + 랭킹
+# ==== 수정된 게임 오버 함수 (중앙 정렬) ====
 def show_game_over():
-    ctx.fillStyle='rgba(0,0,0,0.7)'
-    ctx.fillRect(0,0,STAGE_W,STAGE_H)
-    ctx.fillStyle='#fff'
-    ctx.font='48px sans-serif'
-    ctx.textAlign='center'
-    ctx.fillText('게임 오버',STAGE_W/2,STAGE_H/2-60)
-    ctx.font='24px sans-serif'
-    ctx.fillText(f'최종 점수: {score}',STAGE_W/2,STAGE_H/2-20)
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'
+    ctx.fillRect(0, 0, STAGE_W, STAGE_H)
+    ctx.fillStyle = '#fff'
+    ctx.textAlign = 'center'
+
+    # 랭킹 및 메시지 데이터 준비
+    messages = []
+
+    # 게임 오버
+    ctx.font = '48px sans-serif'
+    messages.append(('게임 오버', 48))
+
+    # 최종 점수
+    ctx.font = '24px sans-serif'
+    messages.append((f'최종 점수: {score}', 24))
 
     # 이름 입력
     name = window.prompt("게임 끝! 이름을 입력하세요:", "플레이어")
-    if not name: name="익명"
+    if not name: name = "익명"
 
     ranking_json = window.localStorage.getItem('ranking')
     if ranking_json:
@@ -232,18 +239,30 @@ def show_game_over():
     else:
         ranking = []
 
-    ranking.append({'name':name,'score':score})
-    ranking = sorted(ranking,key=lambda x:x['score'],reverse=True)
+    ranking.append({'name': name, 'score': score})
+    ranking = sorted(ranking, key=lambda x: x['score'], reverse=True)
     ranking = ranking[:5]
-    window.localStorage.setItem('ranking',json.dumps(ranking))
+    window.localStorage.setItem('ranking', json.dumps(ranking))
 
-    ctx.font='20px sans-serif'
-    ctx.fillText("🏆 상위 5명", STAGE_W/2, STAGE_H/2+40)
-    for i,entry in enumerate(ranking):
-        ctx.fillText(f"{i+1}. {entry['name']} : {entry['score']}",STAGE_W/2,STAGE_H/2 + 70 + i*30)
+    # 랭킹 메시지 추가
+    messages.append(("🏆 상위 5명", 20))
+    for i, entry in enumerate(ranking):
+        messages.append((f"{i+1}. {entry['name']} : {entry['score']}", 20))
 
-    if not any(entry['name']==name and entry['score']==score for entry in ranking):
-        ctx.fillText("5등 안에 못 들었습니다", STAGE_W/2, STAGE_H/2 + 70 + 5*30)
+    # 5등 안에 못 든 경우
+    if not any(entry['name'] == name and entry['score'] == score for entry in ranking):
+        messages.append(("5등 안에 못 들었습니다", 20))
+
+    # 전체 메시지 높이 계산
+    total_height = sum(font_size + 10 for _, font_size in messages)  # 10px 간격
+    start_y = (STAGE_H - total_height) / 2  # 중앙 기준 시작점
+
+    # 메시지 출력
+    y = start_y
+    for text, font_size in messages:
+        ctx.font = f'{font_size}px sans-serif'
+        ctx.fillText(text, STAGE_W / 2, y + font_size)
+        y += font_size + 10  # 다음 메시지 위치
 
 # 루프
 def all_images_loaded():
