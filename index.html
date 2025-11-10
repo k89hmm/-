@@ -45,15 +45,21 @@ canvas {
     margin-top:12px;
     gap:6px;
 }
+#top-scores {
+    display:none;
+    text-align:center;
+    margin-top:8px;
+    line-height:1.6;
+    font-size:16px;
+}
 input {padding:4px 8px; border-radius:4px; border:none;}
 </style>
 
-<!-- Firebase Realtime Database CDN -->
+<!-- ✅ Firebase Realtime Database CDN -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+import { getDatabase, ref, push, get, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
-// 🔹 Firebase 설정
 const firebaseConfig = {
     apiKey: "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
     authDomain: "aaaa-85ddd.firebaseapp.com",
@@ -68,14 +74,38 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// 점수 업로드 함수
-window.uploadScore = function(name, score){
+// ✅ 점수 업로드 함수
+window.uploadScore = async function(name, score){
     try{
         const scoresRef = ref(db, 'ranking');
-        push(scoresRef, { name: name, score: score });
+        await push(scoresRef, { name: name, score: score });
         console.log("Uploading:", name, score);
+        await window.showTopScores(); // 업로드 후 바로 갱신
     } catch(err){
         console.error("Firebase upload error:", err);
+    }
+};
+
+// ✅ 상위 5명 표시 함수
+window.showTopScores = async function(){
+    try {
+        const scoresRef = query(ref(db, 'ranking'), orderByChild('score'), limitToLast(5));
+        const snapshot = await get(scoresRef);
+        const list = [];
+        snapshot.forEach(child => {
+            list.push(child.val());
+        });
+        list.sort((a,b)=>b.score - a.score);
+
+        let html = "<h3>🏆 상위 5위</h3>";
+        list.forEach((item,i)=>{
+            html += `${i+1}. ${item.name} - ${item.score}<br>`;
+        });
+        const div = document.getElementById("top-scores");
+        div.innerHTML = html;
+        div.style.display = 'block';
+    } catch(err) {
+        console.error("Show top scores error:", err);
     }
 };
 </script>
@@ -91,6 +121,9 @@ window.uploadScore = function(name, score){
   <div id="score">점수: 0</div>
 </div>
 <canvas id="game" width="480" height="640"></canvas>
+
+<!-- ✅ 상위 5명 출력 -->
+<div id="top-scores"></div>
 
 <!-- 이름 입력 영역 -->
 <div id="name-input-container">
@@ -121,10 +154,8 @@ bg_loaded = False
 
 player_img = html.IMG(); player_img.src='player.png'
 player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
-
 bullet_img = html.IMG(); bullet_img.src='bullet.png'
 bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
-
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
@@ -180,24 +211,19 @@ def update(dt):
 
 def draw():
     ctx.clearRect(0,0,STAGE_W,STAGE_H)
-    if bg_loaded:
-        ctx.drawImage(bg_img,0,0,STAGE_W,STAGE_H)
+    if bg_loaded: ctx.drawImage(bg_img,0,0,STAGE_W,STAGE_H)
     if player_loaded:
         ratio=player_img.naturalWidth/player_img.naturalHeight
-        draw_w=player['w']/2
-        draw_h=draw_w/ratio
+        draw_w=player['w']/2; draw_h=draw_w/ratio
         ctx.drawImage(player_img,player['x']-draw_w/2,player['y']-draw_h/2,draw_w,draw_h)
     for b in bullets:
         if bullet_loaded:
             ratio=bullet_img.naturalWidth/bullet_img.naturalHeight
-            draw_w=b['r']*6
-            draw_h=draw_w/ratio
+            draw_w=b['r']*6; draw_h=draw_w/ratio
             ctx.drawImage(bullet_img,b['x']-draw_w/2,b['y']-draw_h/2,draw_w,draw_h)
         else:
-            ctx.beginPath()
-            ctx.arc(b['x'],b['y'],b['r']*3,0,2*math.pi)
-            ctx.fillStyle='#ff6b6b'
-            ctx.fill()
+            ctx.beginPath(); ctx.arc(b['x'],b['y'],b['r']*3,0,2*math.pi)
+            ctx.fillStyle='#ff6b6b'; ctx.fill()
     document['score'].text=f"점수: {score}"
 
 def show_game_over():
@@ -211,11 +237,9 @@ def show_game_over():
     ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
     ctx.font = '24px sans-serif'
     ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
-
-    # 🔹 이름 입력 UI 표시
     document['name-input-container'].style.display = 'flex'
+    document['top-scores'].style.display = 'block'  # 랭킹 표시
 
-# 이름 제출 후 Firebase 업로드
 def submit_name(ev):
     name = document['player-name'].value.strip()
     if name:
@@ -260,16 +284,12 @@ document['game'].bind('touchmove', on_touch)
 
 def start_game(ev=None):
     global running, bullets, score, last_spawn, difficulty_timer, player, game_started
-    bullets=[]
-    score=0
-    last_spawn=0
-    difficulty_timer=0
-    running=True
-    game_started = True
-    player['x']=STAGE_W/2
-    player['y']=STAGE_H/2
+    bullets=[]; score=0; last_spawn=0; difficulty_timer=0
+    running=True; game_started=True
+    player['x']=STAGE_W/2; player['y']=STAGE_H/2
     document['name-input-container'].style.display = 'none'
     document['player-name'].value = ''
+    document['top-scores'].style.display = 'none'
 
 document['start'].bind('click',start_game)
 
@@ -277,14 +297,11 @@ def all_images_loaded():
     return player_img.complete and bullet_img.complete and bg_img.complete
 
 def start_loop_when_ready(ts):
-    if all_images_loaded():
-        timer.request_animation_frame(loop)
-    else:
-        timer.set_timeout(lambda: start_loop_when_ready(ts),50)
+    if all_images_loaded(): timer.request_animation_frame(loop)
+    else: timer.set_timeout(lambda: start_loop_when_ready(ts),50)
 
 def loop(ts):
-    game_loop()
-    timer.request_animation_frame(loop)
+    game_loop(); timer.request_animation_frame(loop)
 
 start_loop_when_ready(0)
 </script>
