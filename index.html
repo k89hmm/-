@@ -38,21 +38,49 @@ canvas {
     display:block;
     touch-action: none;
 }
-#name-input-container {
-    display:none;
-    flex-direction:column;
-    align-items:center;
-    margin-top:12px;
-    gap:6px;
+
+/* ✅ 오버레이 스타일 */
+#overlay {
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 480px;
+    height: 640px;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    background: rgba(0,0,0,0.7);
+    border-radius: 8px;
+    text-align: center;
+    color: white;
 }
-#top-scores {
-    display:none;
-    text-align:center;
-    margin-top:8px;
-    line-height:1.6;
+#overlay h2 { font-size: 48px; margin-bottom: 12px; }
+#overlay p { font-size: 24px; margin-bottom: 16px; }
+#overlay input {
+    padding: 8px;
+    font-size: 16px;
+    border-radius: 6px;
+    border: none;
+    text-align: center;
+    width: 200px;
+    margin-bottom: 8px;
+}
+#overlay button {
+    background:#2b6df6;
+    color:white;
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
     font-size:16px;
+    margin-bottom: 10px;
 }
-input {padding:4px 8px; border-radius:4px; border:none;}
+#overlay #top-scores {
+    font-size: 18px;
+    line-height: 1.6;
+    margin-top: 10px;
+}
 </style>
 
 <!-- ✅ Firebase Realtime Database CDN -->
@@ -74,36 +102,31 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// ✅ 점수 업로드 함수
+// ✅ 점수 업로드
 window.uploadScore = async function(name, score){
     try{
         const scoresRef = ref(db, 'ranking');
         await push(scoresRef, { name: name, score: score });
         console.log("Uploading:", name, score);
-        await window.showTopScores(); // 업로드 후 바로 갱신
+        await window.showTopScores();
     } catch(err){
         console.error("Firebase upload error:", err);
     }
 };
 
-// ✅ 상위 5명 표시 함수
+// ✅ 상위 5명 표시
 window.showTopScores = async function(){
     try {
         const scoresRef = query(ref(db, 'ranking'), orderByChild('score'), limitToLast(5));
         const snapshot = await get(scoresRef);
         const list = [];
-        snapshot.forEach(child => {
-            list.push(child.val());
-        });
+        snapshot.forEach(child => { list.push(child.val()); });
         list.sort((a,b)=>b.score - a.score);
 
         let html = "<h3>🏆 상위 5위</h3>";
-        list.forEach((item,i)=>{
-            html += `${i+1}. ${item.name} - ${item.score}<br>`;
-        });
+        list.forEach((item,i)=>{ html += `${i+1}. ${item.name} - ${item.score}<br>`; });
         const div = document.getElementById("top-scores");
         div.innerHTML = html;
-        div.style.display = 'block';
     } catch(err) {
         console.error("Show top scores error:", err);
     }
@@ -122,13 +145,13 @@ window.showTopScores = async function(){
 </div>
 <canvas id="game" width="480" height="640"></canvas>
 
-<!-- ✅ 상위 5명 출력 -->
-<div id="top-scores"></div>
-
-<!-- 이름 입력 영역 -->
-<div id="name-input-container">
-    <input type="text" id="player-name" placeholder="이름 입력">
-    <button id="submit-name">점수 제출</button>
+<!-- ✅ 오버레이: 게임 오버 + 이름 입력 + 상위 5위 -->
+<div id="overlay">
+  <h2>게임 오버</h2>
+  <p id="final-score">최종 점수: 0</p>
+  <input type="text" id="player-name" placeholder="이름 입력">
+  <button id="submit-name">점수 제출</button>
+  <div id="top-scores"></div>
 </div>
 
 <script type="text/python3">
@@ -152,6 +175,7 @@ player_loaded = False
 bullet_loaded = False
 bg_loaded = False
 
+# ✅ 이미지 로딩
 player_img = html.IMG(); player_img.src='player.png'
 player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
 bullet_img = html.IMG(); bullet_img.src='bullet.png'
@@ -178,14 +202,10 @@ def update(dt):
     if not running: return
     last_spawn += dt
     difficulty_timer += dt
-    if last_spawn>=spawn_interval:
-        last_spawn=0
-        spawn_bullet()
+    if last_spawn>=spawn_interval: last_spawn=0; spawn_bullet()
     if difficulty_timer>=5000:
         difficulty_timer=0
-        for b in bullets:
-            b['vx']*=1.5
-            b['vy']*=1.5
+        for b in bullets: b['vx']*=1.5; b['vy']*=1.5
     if keys['left']: player['x']-=player['speed']
     if keys['right']: player['x']+=player['speed']
     if keys['up']: player['y']-=player['speed']
@@ -193,21 +213,15 @@ def update(dt):
     player['x']=max(player['w']/2,min(STAGE_W-player['w']/2,player['x']))
     player['y']=max(player['h']/2,min(STAGE_H-player['h']/2,player['y']))
     for b in list(bullets):
-        b['x']+=b['vx']
-        b['y']+=b['vy']
+        b['x']+=b['vx']; b['y']+=b['vy']
         if b['x']<-50 or b['x']>STAGE_W+50 or b['y']<-50 or b['y']>STAGE_H+50:
-            bullets.remove(b)
-            score+=1
+            bullets.remove(b); score+=1
     for b in bullets:
-        rx=player['x']-player['w']/2
-        ry=player['y']-player['h']/2
+        rx=player['x']-player['w']/2; ry=player['y']-player['h']/2
         closest_x=max(rx,min(b['x'],rx+player['w']))
         closest_y=max(ry,min(b['y'],ry+player['h']))
-        dx=(b['x']-closest_x)*0.2
-        dy=(b['y']-closest_y)*0.5
-        if dx*dx+dy*dy<=b['r']*b['r']:
-            running=False
-            break
+        dx=(b['x']-closest_x)*0.2; dy=(b['y']-closest_y)*0.5
+        if dx*dx+dy*dy<=b['r']*b['r']: running=False; break
 
 def draw():
     ctx.clearRect(0,0,STAGE_W,STAGE_H)
@@ -227,32 +241,26 @@ def draw():
     document['score'].text=f"점수: {score}"
 
 def show_game_over():
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'
-    ctx.fillRect(0,0,STAGE_W,STAGE_H)
-    ctx.fillStyle = '#fff'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,STAGE_W,STAGE_H)
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     center_y = STAGE_H / 2
-    ctx.font = '48px sans-serif'
-    ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
-    ctx.font = '24px sans-serif'
-    ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
-    document['name-input-container'].style.display = 'flex'
-    document['top-scores'].style.display = 'block'  # 랭킹 표시
+    ctx.font = '48px sans-serif'; ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
+    ctx.font = '24px sans-serif'; ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
+    document['overlay'].style.display = 'flex'
+    document['final-score'].text = f"최종 점수: {score}"
+    window.showTopScores()
 
 def submit_name(ev):
     name = document['player-name'].value.strip()
     if name:
         window.uploadScore(name, score)
-        document['name-input-container'].style.display = 'none'
+        document['overlay'].style.display = 'none'
 
 document['submit-name'].bind('click', submit_name)
 
 def game_loop():
-    update(16)
-    draw()
-    if not running and game_started:
-        show_game_over()
+    update(16); draw()
+    if not running and game_started: show_game_over()
 
 def on_keydown(ev):
     if ev.key in ('ArrowLeft','a'): keys['left']=True
@@ -268,8 +276,7 @@ def on_keyup(ev):
     if ev.key in ('ArrowDown','s'): keys['down']=False
     if ev.key in ('ArrowLeft','ArrowRight','ArrowUp','ArrowDown'): ev.preventDefault()
 
-document.bind('keydown',on_keydown)
-document.bind('keyup',on_keyup)
+document.bind('keydown',on_keydown); document.bind('keyup',on_keyup)
 
 def on_touch(ev):
     if not running: return
@@ -287,9 +294,8 @@ def start_game(ev=None):
     bullets=[]; score=0; last_spawn=0; difficulty_timer=0
     running=True; game_started=True
     player['x']=STAGE_W/2; player['y']=STAGE_H/2
-    document['name-input-container'].style.display = 'none'
+    document['overlay'].style.display = 'none'
     document['player-name'].value = ''
-    document['top-scores'].style.display = 'none'
 
 document['start'].bind('click',start_game)
 
