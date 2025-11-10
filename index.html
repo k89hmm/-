@@ -52,7 +52,7 @@ canvas {
 <canvas id="game" width="480" height="640"></canvas>
 
 <script type="text/python3">
-from browser import document, html, timer, window
+from browser import document, html, timer
 import math, random
 
 CANVAS = document['game']
@@ -64,6 +64,7 @@ bullets = []
 spawn_interval = 700
 last_spawn = 0
 running = False
+game_started = False
 score = 0
 keys = {'left':False,'right':False,'up':False,'down':False}
 difficulty_timer = 0
@@ -128,7 +129,7 @@ def update(dt):
             bullets.remove(b)
             score+=1
 
-    # 충돌 체크 (좌우 20%, 상하 50%)
+    # 충돌 체크
     for b in bullets:
         rx=player['x']-player['w']/2
         ry=player['y']-player['h']/2
@@ -163,18 +164,24 @@ def draw():
             ctx.fill()
     document['score'].text=f"점수: {score}"
 
-# 게임 오버 메시지 (항상 중앙)
+# 게임 오버
 def show_game_over():
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'
-    ctx.fillRect(0, 0, STAGE_W, STAGE_H)
-    ctx.fillStyle = '#fff'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    center_y = STAGE_H / 2
-    ctx.font = '48px sans-serif'
-    ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
-    ctx.font = '24px sans-serif'
-    ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
+    ctx.fillStyle='rgba(0,0,0,0.7)'
+    ctx.fillRect(0,0,STAGE_W,STAGE_H)
+    ctx.fillStyle='#fff'
+    ctx.font='48px sans-serif'
+    ctx.textAlign='center'
+    ctx.fillText('게임 오버',STAGE_W/2,STAGE_H/2-24)
+    ctx.font='24px sans-serif'
+    ctx.fillText(f'최종 점수: {score}',STAGE_W/2,STAGE_H/2+24)
+
+# 게임 루프
+def game_loop():
+    if running:
+        update(16)
+        draw()
+    elif game_started:
+        show_game_over()
 
 # 키보드
 def on_keydown(ev):
@@ -208,25 +215,19 @@ document['game'].bind('touchmove', on_touch)
 
 # 게임 시작
 def start_game(ev=None):
-    global running, bullets, score, last_spawn, difficulty_timer, player
+    global running, bullets, score, last_spawn, difficulty_timer, player, game_started
     bullets=[]
     score=0
     last_spawn=0
     difficulty_timer=0
     running=True
+    game_started = True
     player['x']=STAGE_W/2
     player['y']=STAGE_H/2
 
 document['start'].bind('click',start_game)
 
-# 게임 루프
-def game_loop():
-    if running:
-        update(16)
-        draw()
-    else:
-        show_game_over()
-
+# 이미지 로딩 루프
 def all_images_loaded():
     return player_img.complete and bullet_img.complete and bg_img.complete
 
