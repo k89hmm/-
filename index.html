@@ -42,34 +42,34 @@ canvas {
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
 
-<!-- 🔹 Firebase SDK -->
+<!-- Firebase SDK -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-
   const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
     authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
     projectId: "YOUR_PROJECT_ID",
     storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    messagingSenderId: "YOUR_SENDER_ID",
     appId: "YOUR_APP_ID"
   };
+
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.31.0/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/9.31.0/firebase-firestore.js";
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  // 게임 오버 시 점수 업로드
-  window.uploadScore = async (name, score) => {
-      try:
-          await addDoc(collection(db, "game_scores"), {
-              name: name,
-              score: score,
-              timestamp: Date.now()
-          })
-          console.log("점수 업로드 성공:", name, score)
-      except Exception as e:
-          console.error("점수 업로드 실패:", e)
+  window.uploadScore = async function(name, score) {
+    try {
+      await addDoc(collection(db, "scores"), {
+        name: name,
+        score: score,
+        timestamp: new Date()
+      });
+      console.log("Score uploaded:", name, score);
+    } catch (e) {
+      console.error("Error uploading score:", e);
+    }
   }
 </script>
 
@@ -137,6 +137,11 @@ def update(dt):
     if last_spawn>=spawn_interval:
         last_spawn=0
         spawn_bullet()
+    if difficulty_timer>=5000:
+        difficulty_timer=0
+        for b in bullets:
+            b['vx']*=1.5
+            b['vy']*=1.5
 
     # 키보드 이동
     if keys['left']: player['x']-=player['speed']
@@ -238,7 +243,7 @@ def start_game(ev=None):
 
 document['start'].bind('click',start_game)
 
-# 🔹 게임 오버 화면 + Firebase 저장
+# 🔹 수정된 게임 오버 화면 (정중앙 표시 + Firebase 업로드)
 def show_game_over():
     ctx.fillStyle = 'rgba(0,0,0,0.7)'
     ctx.fillRect(0,0,STAGE_W,STAGE_H)
@@ -255,12 +260,11 @@ def show_game_over():
     ctx.font = '24px sans-serif'
     ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
 
-    # 이름 입력
+    # Firebase 점수 업로드
     name = window.prompt("게임 끝! 이름을 입력하세요:", "플레이어")
-    if not name: name="익명"
+    if not name: name = "익명"
 
-    # Firebase 업로드
-    window.eval(f"uploadScore('{name}', {score})")
+    window.uploadScore(name, score)
 
 # 루프
 def all_images_loaded():
