@@ -38,18 +38,19 @@ canvas {
     display:block;
     touch-action: none;
 }
-#top-scores {
-    margin-top: 10px;
+#top-scores { 
+    margin-top: 12px;
     text-align: center;
 }
 </style>
 
-<!-- Firebase compat SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
-
+<!-- Brython -->
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
+
+<!-- Firebase 9.22.1 -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 </head>
 <body onload="brython()">
 
@@ -61,46 +62,8 @@ canvas {
 <canvas id="game" width="480" height="640"></canvas>
 <div id="top-scores"></div>
 
-<script>
-  // Firebase 초기화
-  const firebaseConfig = {
-    'apiKey': "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
-    'authDomain': "aaaa-85ddd.firebaseapp.com",
-    'databaseURL': "https://aaaa-85ddd-default-rtdb.firebaseio.com",
-    'projectId': "aaaa-85ddd",
-    'storageBucket': "aaaa-85ddd.firebasestorage.app",
-    'messagingSenderId': "947357162592",
-    'appId': "1:947357162592:web:599896666a79b4b219f705",
-    'measurementId': "G-KVHXK6GR39"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
-
-  // 점수 업로드
-  function uploadScore(name, score){
-      db.collection("scores").add({name: name, score: score})
-        .then(() => showTopScores())
-        .catch(e => console.error(e));
-  }
-
-  // 상위 5명 표시
-  function showTopScores(){
-      db.collection("scores")
-        .orderBy("score", "desc")
-        .limit(5)
-        .get()
-        .then(querySnapshot => {
-            let html = "<h3>Top 5 점수</h3>";
-            querySnapshot.forEach((doc, i) => {
-                let data = doc.data();
-                html += `${i+1}. ${data.name}: ${data.score}<br>`;
-            });
-            document.getElementById("top-scores").innerHTML = html;
-        });
-  }
-</script>
-
 <script type="text/python3">
+# ==================== 기존 Brython 게임 코드 ====================
 from browser import document, html, timer, window
 import math, random
 
@@ -117,31 +80,26 @@ game_started = False
 score = 0
 keys = {'left':False,'right':False,'up':False,'down':False}
 difficulty_timer = 0
+
+player_img = html.IMG(); player_img.src='player.png'
+bullet_img = html.IMG(); bullet_img.src='bullet.png'
+bg_img = html.IMG(); bg_img.src='background.png'
+
 player_loaded = False
 bullet_loaded = False
 bg_loaded = False
-
-player_img = html.IMG(); player_img.src='player.png'
 player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
-
-bullet_img = html.IMG(); bullet_img.src='bullet.png'
 bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
-
-bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
     size = random.uniform(6,14)
     speed = random.uniform(2.0,4.2)+(score/200.0)
-    if side=='top':
-        x=random.uniform(0,STAGE_W); y=-size; vx=random.uniform(-1,1); vy=speed
-    elif side=='bottom':
-        x=random.uniform(0,STAGE_W); y=STAGE_H+size; vx=random.uniform(-1,1); vy=-speed
-    elif side=='left':
-        x=-size; y=random.uniform(0,STAGE_H); vx=speed; vy=random.uniform(-1,1)
-    else:
-        x=STAGE_W+size; y=random.uniform(0,STAGE_H); vx=-speed; vy=random.uniform(-1,1)
+    if side=='top': x=random.uniform(0,STAGE_W); y=-size; vx=random.uniform(-1,1); vy=speed
+    elif side=='bottom': x=random.uniform(0,STAGE_W); y=STAGE_H+size; vx=random.uniform(-1,1); vy=-speed
+    elif side=='left': x=-size; y=random.uniform(0,STAGE_H); vx=speed; vy=random.uniform(-1,1)
+    else: x=STAGE_W+size; y=random.uniform(0,STAGE_H); vx=-speed; vy=random.uniform(-1,1)
     bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
 
 def update(dt):
@@ -149,14 +107,9 @@ def update(dt):
     if not running: return
     last_spawn += dt
     difficulty_timer += dt
-    if last_spawn>=spawn_interval:
-        last_spawn=0
-        spawn_bullet()
-    if difficulty_timer>=5000:
-        difficulty_timer=0
-        for b in bullets:
-            b['vx']*=1.5
-            b['vy']*=1.5
+    if last_spawn>=spawn_interval: last_spawn=0; spawn_bullet()
+    if difficulty_timer>=5000: difficulty_timer=0; 
+        for b in bullets: b['vx']*=1.5; b['vy']*=1.5
 
     if keys['left']: player['x']-=player['speed']
     if keys['right']: player['x']+=player['speed']
@@ -187,8 +140,7 @@ def update(dt):
 
 def draw():
     ctx.clearRect(0,0,STAGE_W,STAGE_H)
-    if bg_loaded:
-        ctx.drawImage(bg_img,0,0,STAGE_W,STAGE_H)
+    if bg_loaded: ctx.drawImage(bg_img,0,0,STAGE_W,STAGE_H)
     if player_loaded:
         ratio=player_img.naturalWidth/player_img.naturalHeight
         draw_w=player['w']/2
@@ -210,22 +162,14 @@ def draw():
 def show_game_over():
     ctx.fillStyle = 'rgba(0,0,0,0.7)'
     ctx.fillRect(0,0,STAGE_W,STAGE_H)
-
     ctx.fillStyle = '#fff'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     center_y = STAGE_H / 2
-
     ctx.font = '48px sans-serif'
     ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
-
     ctx.font = '24px sans-serif'
     ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
-
-def ask_name_and_upload():
-    name = window.prompt("플레이어 이름을 입력하세요")
-    if name:
-        window.uploadScore(name, score)
 
 def game_loop():
     update(16)
@@ -278,16 +222,58 @@ def all_images_loaded():
     return player_img.complete and bullet_img.complete and bg_img.complete
 
 def start_loop_when_ready(ts):
-    if all_images_loaded():
-        timer.request_animation_frame(loop)
-    else:
-        timer.set_timeout(lambda: start_loop_when_ready(ts),50)
+    if all_images_loaded(): timer.request_animation_frame(loop)
+    else: timer.set_timeout(lambda: start_loop_when_ready(ts),50)
 
 def loop(ts):
     game_loop()
     timer.request_animation_frame(loop)
 
 start_loop_when_ready(0)
+
+# ========== 게임 오버 후 이름 입력, 점수 업로드 ==========
+def ask_name_and_upload():
+    name = window.prompt("이름을 입력하세요:", "플레이어")
+    if name: window.uploadScore(name, score)
+
 </script>
+
+<!-- ========== JS: Firebase 업로드 & Top5 표시 ========= -->
+<script type="text/javascript">
+  // Firebase 초기화
+  const firebaseConfig = {
+    apiKey: "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
+    authDomain: "aaaa-85ddd.firebaseapp.com",
+    projectId: "https://aaaa-85ddd-default-rtdb.firebaseio.com",
+    storageBucket: "aaaa-85ddd",
+    messagingSenderId: "1:947357162592:web:599896666a79b4b219f705",
+    appId: "G-KVHXK6GR39"
+  };
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // Brython에서 호출
+  window.uploadScore = function(name, score){
+    db.collection("scores").add({name: name, score: score})
+      .then(() => { showTopScores(); })
+      .catch(e => console.error(e));
+  }
+
+  function showTopScores(){
+    db.collection("scores")
+      .orderBy("score", "desc")
+      .limit(5)
+      .get()
+      .then(snapshot => {
+        const div = document.getElementById("top-scores");
+        div.innerHTML = "<h3>Top 5</h3>";
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          div.innerHTML += `<div>${data.name}: ${data.score}</div>`;
+        });
+      });
+  }
+</script>
+
 </body>
 </html>
