@@ -5,13 +5,44 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>좌형의 안민철 피하기</title>
 <style>
-body { margin:0; padding:20px; background:#111; font-family:system-ui; color:#fff; display:flex; flex-direction:column; align-items:center; gap:12px; }
+body {
+    margin:0; padding:20px;
+    background:#111;
+    font-family:system-ui;
+    color:#fff;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+}
 h1 {margin:0; text-align:center;}
 #controls { display:flex; gap:12px; align-items:center; }
-button { padding:8px 12px; border-radius:6px; border:none; background:#2b6df6; color:white; cursor:pointer; }
+button {
+    padding:8px 12px;
+    border-radius:6px;
+    border:none;
+    background:#2b6df6;
+    color:white;
+    cursor:pointer;
+}
 #score { font-weight:700; }
-canvas { width:100%; max-width:480px; height:auto; background:#000; border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,0.6); display:block; touch-action: none; }
-#name-input-container { display:none; flex-direction:column; align-items:center; margin-top:12px; gap:6px; }
+canvas {
+    width:100%;
+    max-width:480px;
+    height:auto;
+    background:#000;
+    border-radius:8px;
+    box-shadow:0 6px 24px rgba(0,0,0,0.6);
+    display:block;
+    touch-action: none;
+}
+#name-input-container {
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    margin-top:12px;
+    gap:6px;
+}
 #top-scores { margin-top:12px; text-align:center; }
 input {padding:4px 8px; border-radius:4px; border:none;}
 </style>
@@ -21,47 +52,44 @@ input {padding:4px 8px; border-radius:4px; border:none;}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
+// 🔹 자신의 Firebase 설정 (Firestore 프로젝트 ID 확인!)
 const firebaseConfig = {
     apiKey: "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
     authDomain: "aaaa-85ddd.firebaseapp.com",
-    projectId: "https://aaaa-85ddd-default-rtdb.firebaseio.com",
-    storageBucket: "aaaa-85ddd",
-    messagingSenderId: "1:947357162592:web:599896666a79b4b219f705",
+    projectId: "aaaa-85ddd",
+    storageBucket: "aaaa-85ddd.appspot.com",
+    messagingSenderId: "947357162592",
     appId: "G-KVHXK6GR39"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 점수 업로드
+// 🔹 점수 업로드
 window.uploadScore = async function(name, score) {
     try {
-        console.log("Uploading:", name, score);  // 🔹 디버깅
+        console.log("Uploading:", name, score);
         await addDoc(collection(db, "scores"), { name: name, score: score });
-        await window.showTopScores();
+        console.log("Upload successful!");
+        await window.showTopScores();  // 업로드 후 상위 5명 표시
     } catch(err) {
         console.error("Firebase upload error:", err);
     }
 };
 
-// 상위 5명 점수 불러오기
+// 🔹 상위 5명 점수 표시
 window.showTopScores = async function() {
     const scoresDiv = document.getElementById("top-scores");
-    try {
-        const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(5));
-        const querySnapshot = await getDocs(q);
+    const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(5));
+    const querySnapshot = await getDocs(q);
 
-        let html = "<h3>Top 5 Players</h3><ol>";
-        querySnapshot.forEach(doc => {
-            const data = doc.data();
-            html += `<li>${data.name}: ${data.score}</li>`;
-        });
-        html += "</ol>";
-        scoresDiv.innerHTML = html;
-    } catch(err) {
-        console.error("Firebase fetch error:", err);
-        scoresDiv.innerHTML = "<p>점수 불러오기 실패</p>";
-    }
+    let html = "<h3>Top 5 Players</h3><ol>";
+    querySnapshot.forEach(doc => {
+        const data = doc.data();
+        html += `<li>${data.name}: ${data.score}</li>`;
+    });
+    html += "</ol>";
+    scoresDiv.innerHTML = html;
 };
 </script>
 
@@ -203,11 +231,8 @@ def show_game_over():
     ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
     ctx.font = '24px sans-serif'
     ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
-
-    # 🔹 이름 입력 영역 표시
     document['name-input-container'].style.display = 'flex'
 
-# 🔹 이름 입력 후 점수 업로드
 def submit_name(ev):
     name = document['player-name'].value.strip()
     if name:
