@@ -38,10 +38,18 @@ canvas {
     display:block;
     touch-action: none;
 }
+#name-input-container {
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    margin-top:12px;
+    gap:6px;
+}
 #top-scores {
     margin-top:12px;
     text-align:center;
 }
+input {padding:4px 8px; border-radius:4px; border:none;}
 </style>
 
 <!-- Firebase 공식 CDN 9.22.1 -->
@@ -51,12 +59,14 @@ import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from
 
 // 🔹 자신의 Firebase 설정 입력
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+    'apiKey': "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
+    'authDomain': "aaaa-85ddd.firebaseapp.com",
+    'databaseURL': "https://aaaa-85ddd-default-rtdb.firebaseio.com",
+    'projectId': "aaaa-85ddd",
+    'storageBucket': "aaaa-85ddd.firebasestorage.app",
+    'messagingSenderId': "947357162592",
+    'appId': "1:947357162592:web:599896666a79b4b219f705",
+    'measurementId': "G-KVHXK6GR39"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -100,7 +110,13 @@ window.showTopScores = async function() {
 </div>
 <canvas id="game" width="480" height="640"></canvas>
 
-<!-- 🔹 Top 5 점수 표시 영역 -->
+<!-- 이름 입력 영역 -->
+<div id="name-input-container">
+    <input type="text" id="player-name" placeholder="이름 입력">
+    <button id="submit-name">점수 제출</button>
+</div>
+
+<!-- Top 5 점수 표시 영역 -->
 <div id="top-scores"></div>
 
 <script type="text/python3">
@@ -221,18 +237,23 @@ def show_game_over():
     ctx.font = '24px sans-serif'
     ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
 
-# 🔹 게임 오버 시점에만 Firebase 업로드와 Top 5 표시
-def ask_name_and_upload():
-    name = window.prompt("이름을 입력하세요:", "Player")
+    # 🔹 이름 입력 영역 표시
+    document['name-input-container'].style.display = 'flex'
+
+# 🔹 이름 입력 후 점수 업로드
+def submit_name(ev):
+    name = document['player-name'].value.strip()
     if name:
         window.uploadScore(name, score)
+        document['name-input-container'].style.display = 'none'
+
+document['submit-name'].bind('click', submit_name)
 
 def game_loop():
     update(16)
     draw()
     if not running and game_started:
         show_game_over()
-        ask_name_and_upload()  # 🔹 게임 오버 후 이름 입력 및 점수 업로드
 
 def on_keydown(ev):
     if ev.key in ('ArrowLeft','a'): keys['left']=True
@@ -272,6 +293,8 @@ def start_game(ev=None):
     game_started = True
     player['x']=STAGE_W/2
     player['y']=STAGE_H/2
+    document['name-input-container'].style.display = 'none'
+    document['player-name'].value = ''
 
 document['start'].bind('click',start_game)
 
