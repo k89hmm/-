@@ -105,7 +105,6 @@ window.uploadScore = async function(name, score){
     try{
         const scoresRef = ref(db, 'ranking');
         await push(scoresRef, { name: name, score: score });
-        console.log("Uploading:", name, score);
         await window.showTopScores();
     } catch(err){
         console.error("Firebase upload error:", err);
@@ -119,11 +118,9 @@ window.showTopScores = async function(){
         const list = [];
         snapshot.forEach(child => { list.push(child.val()); });
         list.sort((a,b)=>b.score - a.score);
-
         let html = "<h3>🏆 상위 5위</h3>";
         list.forEach((item,i)=>{ html += `${i+1}. ${item.name} - ${item.score}<br>`; });
-        const div = document.getElementById("top-scores");
-        div.innerHTML = html;
+        document.getElementById("top-scores").innerHTML = html;
     } catch(err) {
         console.error("Show top scores error:", err);
     }
@@ -176,12 +173,19 @@ player_loaded = False
 bullet_loaded = False
 bg_loaded = False
 
+# 이미지 로딩
 player_img = html.IMG(); player_img.src='player.png'
 player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
 bullet_img = html.IMG(); bullet_img.src='bullet.png'
 bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
+
+# 터치용 변수
+touch_start_player_x = 0
+touch_start_player_y = 0
+touch_start_x = 0
+touch_start_y = 0
 
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
@@ -205,21 +209,22 @@ def update(dt):
     if last_spawn >= spawn_interval: last_spawn = 0; spawn_bullet()
     if difficulty_timer >= 5000:
         difficulty_timer = 0
-        for b in bullets: b['vx'] *= 1.5; b['vy'] *= 1.5
-    if keys['left']: player['x'] -= player['speed']
-    if keys['right']: player['x'] += player['speed']
-    if keys['up']: player['y'] -= player['speed']
-    if keys['down']: player['y'] += player['speed']
-    player['x'] = max(player['w']/2, min(STAGE_W - player['w']/2, player['x']))
-    player['y'] = max(player['h']/2, min(STAGE_H - player['h']/2, player['y']))
-    
+        for b in bullets: b['vx']*=1.5; b['vy']*=1.5
+
+    if keys['left']: player['x']-=player['speed']
+    if keys['right']: player['x']+=player['speed']
+    if keys['up']: player['y']-=player['speed']
+    if keys['down']: player['y']+=player['speed']
+    player['x']=max(player['w']/2,min(STAGE_W-player['w']/2,player['x']))
+    player['y']=max(player['h']/2,min(STAGE_H-player['h']/2,player['y']))
+
     for b in list(bullets):
-        b['x'] += b['vx']; b['y'] += b['vy']
-        if b['x'] < -50 or b['x'] > STAGE_W + 50 or b['y'] < -50 or b['y'] > STAGE_H + 50:
+        b['x']+=b['vx']; b['y']+=b['vy']
+        if b['x']<-50 or b['x']>STAGE_W+50 or b['y']<-50 or b['y']>STAGE_H+50:
             bullets.remove(b)
             score += 1
 
-    # ✅ 점수 10점 단위 체크: bullets 제거와 상관없이 수행
+    # ✅ 점수 10점 단위마다 bullet 추가
     if score // 10 > last_score_checkpoint // 10:
         for _ in range(extra_bullets_per_10_score):
             spawn_bullet()
@@ -230,7 +235,6 @@ def update(dt):
         player_hit_h = player['h']
         bullet_hit_w = (b['r']*6)*0.25
         bullet_hit_h = (b['r']*6)*0.5
-
         rx = player['x'] - player_hit_w/2
         ry = player['y'] - player_hit_h/2
         closest_x = max(rx, min(b['x'], rx + player_hit_w))
@@ -256,7 +260,6 @@ def draw():
         else:
             ctx.beginPath(); ctx.arc(b['x'],b['y'],b['r']*3,0,2*math.pi)
             ctx.fillStyle='#ff6b6b'; ctx.fill()
-
     document['score'].text=f"점수: {score}"
 
 def show_game_over():
@@ -280,7 +283,6 @@ document['submit-name'].bind('click', submit_name)
 def restart_game(ev):
     document['overlay'].style.display = 'none'
     window.start_game()
-
 document['restart-game'].bind('click', restart_game)
 
 def game_loop():
@@ -303,36 +305,40 @@ def on_keyup(ev):
 
 document.bind('keydown',on_keydown); document.bind('keyup',on_keyup)
 
-def on_touch(ev):
+# ✅ 모바일 터치
+def on_touch_start(ev):
+    global touch_start_player_x, touch_start_player_y, touch_start_x, touch_start_y
     if not running: return
-    # 모바일 터치 기준: 첫 터치 위치를 기준으로 드래그만큼 이동
-    if not hasattr(player, 'touch_start'):
-        player.touch_start = {}
     touch = ev.touches[0]
     rect = CANVAS.getBoundingClientRect()
-    if not player.touch_start:
-        # 처음 터치, 기준 위치 저장
-        player.touch_start['x'] = touch.clientX - rect.left
-        player.touch_start['y'] = touch.clientY - rect.top
-        player.touch_start['player_x'] = player['x']
-        player.touch_start['player_y'] = player['y']
-    else:
-        dx = (touch.clientX - rect.left) - player.touch_start['x']
-        dy = (touch.clientY - rect.top) - player.touch_start['y']
-        player['x'] = max(player['w']/2, min(STAGE_W - player['w']/2, player.touch_start['player_x'] + dx))
-        player['y'] = max(player['h']/2, min(STAGE_H - player['h']/2, player.touch_start['player_y'] + dy))
+    touch_start_player_x = player['x']
+    touch_start_player_y = player['y']
+    touch_start_x = (touch.clientX - rect.left) * (STAGE_W / rect.width)
+    touch_start_y = (touch.clientY - rect.top) * (STAGE_H / rect.height)
     ev.preventDefault()
 
-document['game'].bind('touchstart', on_touch)
-document['game'].bind('touchmove', on_touch)
-document['game'].bind('touchend', lambda ev: setattr(player,'touch_start',{}))
+def on_touch_move(ev):
+    if not running: return
+    touch = ev.touches[0]
+    rect = CANVAS.getBoundingClientRect()
+    current_x = (touch.clientX - rect.left) * (STAGE_W / rect.width)
+    current_y = (touch.clientY - rect.top) * (STAGE_H / rect.height)
+    dx = current_x - touch_start_x
+    dy = current_y - touch_start_y
+    player['x'] = touch_start_player_x + dx
+    player['y'] = touch_start_player_y + dy
+    player['x'] = max(player['w']/2, min(STAGE_W - player['w']/2, player['x']))
+    player['y'] = max(player['h']/2, min(STAGE_H - player['h']/2, player['y']))
+    ev.preventDefault()
+
+document['game'].bind('touchstart', on_touch_start)
+document['game'].bind('touchmove', on_touch_move)
 
 def start_game(ev=None):
     global running, bullets, score, last_spawn, difficulty_timer, player, game_started, last_score_checkpoint
     bullets=[]; score=0; last_spawn=0; difficulty_timer=0; last_score_checkpoint=0
     running=True; game_started=True
     player['x']=STAGE_W/2; player['y']=STAGE_H/2
-    player.touch_start = {}
     document['overlay'].style.display = 'none'
     document['player-name'].value = ''
 
