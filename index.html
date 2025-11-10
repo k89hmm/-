@@ -36,7 +36,7 @@ canvas {
     border-radius:8px;
     box-shadow:0 6px 24px rgba(0,0,0,0.6);
     display:block;
-    touch-action: none; /* 모바일 터치 스크롤 방지 */
+    touch-action: none;
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
@@ -52,14 +52,13 @@ canvas {
 <canvas id="game" width="480" height="640"></canvas>
 
 <script type="text/python3">
-from browser import document, html, timer
-import math, random
+from browser import document, html, timer, window
+import math, random, json
 
 CANVAS = document['game']
 ctx = CANVAS.getContext('2d')
 STAGE_W, STAGE_H = 480, 640
 
-# 게임 상태
 player = {'x': STAGE_W/2, 'y': STAGE_H/2, 'w':50, 'h':50, 'speed':6}
 bullets = []
 spawn_interval = 700
@@ -97,7 +96,7 @@ def spawn_bullet():
         x=STAGE_W+size; y=random.uniform(0,STAGE_H); vx=-speed; vy=random.uniform(-1,1)
     bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
 
-# 게임 업데이트
+# 업데이트
 def update(dt):
     global last_spawn, score, running, difficulty_timer
     if not running: return
@@ -142,7 +141,7 @@ def update(dt):
             show_game_over()
             break
 
-# 게임 그리기
+# 그리기
 def draw():
     ctx.clearRect(0,0,STAGE_W,STAGE_H)
     if bg_loaded:
@@ -194,7 +193,7 @@ def on_touch(ev):
     rect = CANVAS.getBoundingClientRect()
     player['x'] = (touch.clientX - rect.left) * (STAGE_W / rect.width)
     player['y'] = (touch.clientY - rect.top) * (STAGE_H / rect.height)
-    ev.preventDefault()  # 페이지 스크롤 방지
+    ev.preventDefault()
 
 document['game'].bind('touchstart', on_touch)
 document['game'].bind('touchmove', on_touch)
@@ -212,18 +211,41 @@ def start_game(ev=None):
 
 document['start'].bind('click',start_game)
 
-# 게임 오버
+# 게임 오버 + 랭킹
 def show_game_over():
     ctx.fillStyle='rgba(0,0,0,0.7)'
     ctx.fillRect(0,0,STAGE_W,STAGE_H)
     ctx.fillStyle='#fff'
     ctx.font='48px sans-serif'
     ctx.textAlign='center'
-    ctx.fillText('게임 오버',STAGE_W/2,STAGE_H/2-30)
+    ctx.fillText('게임 오버',STAGE_W/2,STAGE_H/2-60)
     ctx.font='24px sans-serif'
-    ctx.fillText(f'최종 점수: {score}',STAGE_W/2,STAGE_H/2+10)
+    ctx.fillText(f'최종 점수: {score}',STAGE_W/2,STAGE_H/2-20)
 
-# 이미지 로딩 후 루프 시작
+    # 이름 입력
+    name = window.prompt("게임 끝! 이름을 입력하세요:", "플레이어")
+    if not name: name="익명"
+
+    ranking_json = window.localStorage.getItem('ranking')
+    if ranking_json:
+        ranking = json.loads(ranking_json)
+    else:
+        ranking = []
+
+    ranking.append({'name':name,'score':score})
+    ranking = sorted(ranking,key=lambda x:x['score'],reverse=True)
+    ranking = ranking[:5]
+    window.localStorage.setItem('ranking',json.dumps(ranking))
+
+    ctx.font='20px sans-serif'
+    ctx.fillText("🏆 상위 5명", STAGE_W/2, STAGE_H/2+40)
+    for i,entry in enumerate(ranking):
+        ctx.fillText(f"{i+1}. {entry['name']} : {entry['score']}",STAGE_W/2,STAGE_H/2 + 70 + i*30)
+
+    if not any(entry['name']==name and entry['score']==score for entry in ranking):
+        ctx.fillText("5등 안에 못 들었습니다", STAGE_W/2, STAGE_H/2 + 70 + 5*30)
+
+# 루프
 def all_images_loaded():
     return player_img.complete and bullet_img.complete and bg_img.complete
 
