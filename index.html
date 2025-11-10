@@ -41,6 +41,38 @@ canvas {
 </style>
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
+
+<!-- 🔹 Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // 게임 오버 시 점수 업로드
+  window.uploadScore = async (name, score) => {
+      try:
+          await addDoc(collection(db, "game_scores"), {
+              name: name,
+              score: score,
+              timestamp: Date.now()
+          })
+          console.log("점수 업로드 성공:", name, score)
+      except Exception as e:
+          console.error("점수 업로드 실패:", e)
+  }
+</script>
+
 </head>
 <body onload="brython()">
 
@@ -52,8 +84,8 @@ canvas {
 <canvas id="game" width="480" height="640"></canvas>
 
 <script type="text/python3">
-from browser import document, html, timer
-import math, random
+from browser import document, html, timer, window
+import math, random, json
 
 CANVAS = document['game']
 ctx = CANVAS.getContext('2d')
@@ -64,7 +96,6 @@ bullets = []
 spawn_interval = 700
 last_spawn = 0
 running = False
-game_started = False  # 🔹 게임 시작 여부 플래그
 score = 0
 keys = {'left':False,'right':False,'up':False,'down':False}
 difficulty_timer = 0
@@ -82,7 +113,7 @@ bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
-# 총알 생성
+# 총알 생성 (사방)
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
     size = random.uniform(6,14)
@@ -106,11 +137,6 @@ def update(dt):
     if last_spawn>=spawn_interval:
         last_spawn=0
         spawn_bullet()
-    if difficulty_timer>=5000:
-        difficulty_timer=0
-        for b in bullets:
-            b['vx']*=1.5
-            b['vy']*=1.5
 
     # 키보드 이동
     if keys['left']: player['x']-=player['speed']
@@ -129,7 +155,7 @@ def update(dt):
             bullets.remove(b)
             score+=1
 
-    # 충돌 체크
+    # 충돌 체크 (좌우 20%, 상하 50%)
     for b in bullets:
         rx=player['x']-player['w']/2
         ry=player['y']-player['h']/2
@@ -139,6 +165,7 @@ def update(dt):
         dy=(b['y']-closest_y)*0.5
         if dx*dx+dy*dy<=b['r']*b['r']:
             running=False
+            show_game_over()
             break
 
 # 그리기
@@ -164,28 +191,9 @@ def draw():
             ctx.fill()
     document['score'].text=f"점수: {score}"
 
-# 🔹 게임 오버 화면 (게임 시작 후만 표시, 정중앙)
-def show_game_over():
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'
-    ctx.fillRect(0,0,STAGE_W,STAGE_H)
-
-    ctx.fillStyle = '#fff'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    center_y = STAGE_H / 2
-
-    ctx.font = '48px sans-serif'
-    ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
-
-    ctx.font = '24px sans-serif'
-    ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
-
-# 게임 루프
 def game_loop():
     update(16)
     draw()
-    if not running and game_started:
-        show_game_over()
 
 # 키보드
 def on_keydown(ev):
@@ -219,19 +227,42 @@ document['game'].bind('touchmove', on_touch)
 
 # 게임 시작
 def start_game(ev=None):
-    global running, bullets, score, last_spawn, difficulty_timer, player, game_started
+    global running, bullets, score, last_spawn, difficulty_timer, player
     bullets=[]
     score=0
     last_spawn=0
     difficulty_timer=0
     running=True
-    game_started = True
     player['x']=STAGE_W/2
     player['y']=STAGE_H/2
 
 document['start'].bind('click',start_game)
 
-# 이미지 로딩 루프
+# 🔹 게임 오버 화면 + Firebase 저장
+def show_game_over():
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'
+    ctx.fillRect(0,0,STAGE_W,STAGE_H)
+
+    ctx.fillStyle = '#fff'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+
+    center_y = STAGE_H / 2
+
+    ctx.font = '48px sans-serif'
+    ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
+
+    ctx.font = '24px sans-serif'
+    ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
+
+    # 이름 입력
+    name = window.prompt("게임 끝! 이름을 입력하세요:", "플레이어")
+    if not name: name="익명"
+
+    # Firebase 업로드
+    window.eval(f"uploadScore('{name}', {score})")
+
+# 루프
 def all_images_loaded():
     return player_img.complete and bullet_img.complete and bg_img.complete
 
