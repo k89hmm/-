@@ -172,7 +172,7 @@ last_spawn = 0
 running = False
 game_started = False
 score = 0
-last_score_checkpoint = 0  # 점수 10점 단위 체크
+last_score_checkpoint = 0
 extra_bullets_per_10_score = 2
 keys = {'left':False,'right':False,'up':False,'down':False}
 difficulty_timer = 0
@@ -187,6 +187,12 @@ bullet_img = html.IMG(); bullet_img.src='bullet.png'
 bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
+
+# ✅ 터치 이동용 변수
+touch_start_player_x = 0
+touch_start_player_y = 0
+touch_start_x = 0
+touch_start_y = 0
 
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
@@ -222,21 +228,18 @@ def update(dt):
         b['x'] += b['vx']; b['y'] += b['vy']
         if b['x'] < -50 or b['x'] > STAGE_W + 50 or b['y'] < -50 or b['y'] > STAGE_H + 50:
             bullets.remove(b); score += 1
-            
-            # ✅ 점수 10점 단위로 bullet 수 증가
             if score // 10 > last_score_checkpoint // 10:
                 for _ in range(extra_bullets_per_10_score):
                     spawn_bullet()
             last_score_checkpoint = score
 
     for b in bullets:
-        # ✅ 히트박스 기준: player 가로 1/2, bullet 가로세로 1/4
+        # 히트박스 기준
         player_hit_w = player['w']/2
         player_hit_h = player['h']
         bullet_hit_w = (b['r']*6)*0.25
         bullet_hit_h = (b['r']*6)*0.5
 
-        # 충돌 감지
         rx = player['x'] - player_hit_w/2
         ry = player['y'] - player_hit_h/2
         closest_x = max(rx, min(b['x'], rx + player_hit_w))
@@ -254,9 +257,6 @@ def draw():
         ratio=player_img.naturalWidth/player_img.naturalHeight
         draw_w=player['w']/2; draw_h=draw_w/ratio
         ctx.drawImage(player_img,player['x']-draw_w/2,player['y']-draw_h/2,draw_w,draw_h)
-        # ✅ player 히트박스 시각화
-        # ctx.strokeStyle = 'lime'
-        # ctx.strokeRect(player['x']-player['w']/4, player['y']-player['h']/2, player['w']/2, player['h'])
     for b in bullets:
         if bullet_loaded:
             ratio=bullet_img.naturalWidth/bullet_img.naturalHeight
@@ -265,11 +265,6 @@ def draw():
         else:
             ctx.beginPath(); ctx.arc(b['x'],b['y'],b['r']*3,0,2*math.pi)
             ctx.fillStyle='#ff6b6b'; ctx.fill()
-        # ✅ bullet 히트박스 시각화
-        # bullet_hit_w = (b['r']*6)*0.25
-        # bullet_hit_h = (b['r']*6)*0.5
-        # ctx.strokeStyle='red'
-        # ctx.strokeRect(b['x']-bullet_hit_w/2,b['y']-bullet_hit_h/2,bullet_hit_w,bullet_hit_h)
 
     document['score'].text=f"점수: {score}"
 
@@ -318,16 +313,35 @@ def on_keyup(ev):
 
 document.bind('keydown',on_keydown); document.bind('keyup',on_keyup)
 
-def on_touch(ev):
+# ✅ 모바일 터치 수정
+def on_touch_start(ev):
+    global touch_start_player_x, touch_start_player_y, touch_start_x, touch_start_y
     if not running: return
     touch = ev.touches[0]
     rect = CANVAS.getBoundingClientRect()
-    player['x'] = (touch.clientX - rect.left) * (STAGE_W / rect.width)
-    player['y'] = (touch.clientY - rect.top) * (STAGE_H / rect.height)
+    touch_start_player_x = player['x']
+    touch_start_player_y = player['y']
+    touch_start_x = (touch.clientX - rect.left) * (STAGE_W / rect.width)
+    touch_start_y = (touch.clientY - rect.top) * (STAGE_H / rect.height)
     ev.preventDefault()
 
-document['game'].bind('touchstart', on_touch)
-document['game'].bind('touchmove', on_touch)
+def on_touch_move(ev):
+    if not running: return
+    touch = ev.touches[0]
+    rect = CANVAS.getBoundingClientRect()
+    current_x = (touch.clientX - rect.left) * (STAGE_W / rect.width)
+    current_y = (touch.clientY - rect.top) * (STAGE_H / rect.height)
+    dx = current_x - touch_start_x
+    dy = current_y - touch_start_y
+    player['x'] = touch_start_player_x + dx
+    player['y'] = touch_start_player_y + dy
+    # 화면 경계 제한
+    player['x'] = max(player['w']/2, min(STAGE_W - player['w']/2, player['x']))
+    player['y'] = max(player['h']/2, min(STAGE_H - player['h']/2, player['y']))
+    ev.preventDefault()
+
+document['game'].bind('touchstart', on_touch_start)
+document['game'].bind('touchmove', on_touch_move)
 
 def start_game(ev=None):
     global running, bullets, score, last_spawn, difficulty_timer, player, game_started, last_score_checkpoint
