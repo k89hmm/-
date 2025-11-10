@@ -255,8 +255,8 @@ def draw():
         draw_w=player['w']/2; draw_h=draw_w/ratio
         ctx.drawImage(player_img,player['x']-draw_w/2,player['y']-draw_h/2,draw_w,draw_h)
         # ✅ player 히트박스 시각화
-        ctx.strokeStyle = 'lime'
-        ctx.strokeRect(player['x']-player['w']/4, player['y']-player['h']/2, player['w']/2, player['h'])
+        # ctx.strokeStyle = 'lime'
+        # ctx.strokeRect(player['x']-player['w']/4, player['y']-player['h']/2, player['w']/2, player['h'])
     for b in bullets:
         if bullet_loaded:
             ratio=bullet_img.naturalWidth/bullet_img.naturalHeight
@@ -266,10 +266,10 @@ def draw():
             ctx.beginPath(); ctx.arc(b['x'],b['y'],b['r']*3,0,2*math.pi)
             ctx.fillStyle='#ff6b6b'; ctx.fill()
         # ✅ bullet 히트박스 시각화
-        bullet_hit_w = (b['r']*6)*0.25
-        bullet_hit_h = (b['r']*6)*0.5
-        ctx.strokeStyle='red'
-        ctx.strokeRect(b['x']-bullet_hit_w/2,b['y']-bullet_hit_h/2,bullet_hit_w,bullet_hit_h)
+        # bullet_hit_w = (b['r']*6)*0.25
+        # bullet_hit_h = (b['r']*6)*0.5
+        # ctx.strokeStyle='red'
+        # ctx.strokeRect(b['x']-bullet_hit_w/2,b['y']-bullet_hit_h/2,bullet_hit_w,bullet_hit_h)
 
     document['score'].text=f"점수: {score}"
 
