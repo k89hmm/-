@@ -141,7 +141,7 @@ def draw():
     if bg_loaded: ctx.drawImage(bg_img,0,0,STAGE_W,STAGE_H)
     if player_loaded:
         ratio=player_img.naturalWidth/player_img.naturalHeight
-        draw_w=player['w']*2
+        draw_w=player['w']
         draw_h=draw_w/ratio
         ctx.drawImage(player_img,player['x']-draw_w/2,player['y']-draw_h/2,draw_w,draw_h)
     for b in bullets:
