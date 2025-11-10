@@ -2,36 +2,70 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>좌형의 안민철 피하기</title>
 <style>
-  body {margin:0;padding:0;font-family:system-ui;display:flex;flex-direction:column;align-items:center;background:#111;color:#eee;}
-  #controls {display:flex;align-items:center;gap:12px;margin:10px;}
-  button {padding:8px 12px;border-radius:6px;border:none;background:#2b6df6;color:white;cursor:pointer;}
-  #score {font-weight:700;}
-  canvas {background:#000;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,0.6);touch-action:none;}
+body {font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans","Helvetica Neue",Arial; display:flex;flex-direction:column;align-items:center;gap:12px;margin:20px;background:#111;color:#eee;overflow:hidden;}
+canvas {border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,0.6);}
+#controls {display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+button {padding:8px 12px;border-radius:6px;border:none;background:#2b6df6;color:white;cursor:pointer;}
+#score {font-weight:700;}
+#ranking {margin-top:6px;}
 </style>
-
-<!-- Brython -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
-
 <body onload="brython()">
 <h1>좌형의 안민철 피하기</h1>
 <div id="controls">
-  <button id="start">게임 시작</button>
-  <div id="score">점수: 0</div>
+<button id="start">시작</button>
+<div id="score">점수: 0</div>
 </div>
-<canvas id="game" width="480" height="640"></canvas>
+<canvas id="game"></canvas>
+<div id="ranking"></div>
 
 <script type="text/python3">
-from browser import document, html, window, timer
+from browser import document, html, window
 import math, random, json
+
+# 화면 크기 맞춤
+W, H = window.innerWidth*0.9, window.innerHeight*0.7
+CANVAS = document['game']
+CANVAS.width = W
+CANVAS.height = H
+ctx = CANVAS.getContext('2d')
+
+player = {'x': W/2, 'y': H/2, 'w': 50, 'h': 50, 'speed': 6}
+bullets = []
+spawn_interval = 700
+last_spawn = 0
+running = False
+score = 0
+keys = {'left': False, 'right': False, 'up': False, 'down': False}
+
+# 이미지
+player_img = html.IMG()
+player_img.src = "player.png"
+player_img.width = player['w']
+player_img.height = player['h']
+
+bullet_img = html.IMG()
+bullet_img.src = "bullet.png"
+
+player_loaded = False
+bullet_loaded = False
+
+def player_loaded_event(ev):
+    global player_loaded
+    player_loaded = True
+player_img.bind('load', player_loaded_event)
+
+def bullet_loaded_event(ev):
+    global bullet_loaded
+    bullet_loaded = True
+bullet_img.bind('load', bullet_loaded_event)
 
 # Firebase 설정
 firebaseConfig = {
@@ -44,181 +78,106 @@ firebaseConfig = {
     'appId': "1:947357162592:web:599896666a79b4b219f705",
     'measurementId': "G-KVHXK6GR39"
 }
-
-# Firebase 초기화
-window.firebase.initializeApp(firebaseConfig)
+firebase_app = window.firebase.initializeApp(firebaseConfig)
 db = window.firebase.database()
-
-# 게임 기본 설정
-CANVAS = document['game']
-ctx = CANVAS.getContext('2d')
-W, H = CANVAS.width, CANVAS.height
-player = {'x': W/2, 'y': H/2, 'w': 100, 'h': 100, 'speed':6}
-bullets = []
-score = 0
-running = False
-keys = {'left':False,'right':False,'up':False,'down':False}
-touch_pos = {'x':player['x'],'y':player['y']}
-
-# 이미지 로드
-player_img = html.IMG()
-player_img.src="player.png"
-player_img.width=player['w']
-player_img.height=player['h']
-
-bullet_img = html.IMG()
-bullet_img.src="bullet.png"
-
-bg = html.IMG()
-bg.src="background.png"
-
-player_loaded=False
-bullet_loaded=False
-bg_loaded=False
-
-def image_loaded(ev):
-    global player_loaded, bullet_loaded, bg_loaded
-    if ev.target==player_img: player_loaded=True
-    elif ev.target==bullet_img: bullet_loaded=True
-    elif ev.target==bg: bg_loaded=True
-
-player_img.bind("load", image_loaded)
-bullet_img.bind("load", image_loaded)
-bg.bind("load", image_loaded)
 
 # 총알 생성
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
-    if side=='top':
-        x=random.uniform(0,W)
-        y=-40
-        vx=0
-        vy=random.uniform(2,4)
-    elif side=='bottom':
-        x=random.uniform(0,W)
-        y=H+40
-        vx=0
-        vy=-random.uniform(2,4)
-    elif side=='left':
-        x=-40
-        y=random.uniform(0,H)
-        vx=random.uniform(2,4)
-        vy=0
+    size = random.uniform(10, 20)
+    speed = random.uniform(2.0, 4.0)
+    if side == 'top':
+        x = random.uniform(0,W)
+        y = -size
+        vx, vy = 0, speed
+    elif side == 'bottom':
+        x = random.uniform(0,W)
+        y = H+size
+        vx, vy = 0, -speed
+    elif side == 'left':
+        x = -size
+        y = random.uniform(0,H)
+        vx, vy = speed, 0
     else:
-        x=W+40
-        y=random.uniform(0,H)
-        vx=-random.uniform(2,4)
-        vy=0
-    r = 20
-    bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':r})
-
-# Firebase 랭킹
-ranking = []
-
-def load_ranking():
-    global ranking
-    def callback(snapshot):
-        data = snapshot.val()
-        if data:
-            ranking[:] = sorted([{"name":d["name"],"score":d["score"]} for d in data.values()],
-                                key=lambda x:x["score"], reverse=True)
-        else:
-            ranking[:] = []
-    db.ref("ranking").get(callback)
-
-def update_ranking(score):
-    name = window.prompt("이름을 입력하세요:") or "익명"
-    db.ref("ranking").push({"name":name,"score":score})
-    load_ranking()
-
-# 게임 오버
-def game_over():
-    global running
-    running=False
-    ctx.fillStyle="rgba(0,0,0,0.5)"
-    ctx.fillRect(0,0,W,H)
-    ctx.fillStyle="#fff"
-    ctx.font="48px sans-serif"
-    ctx.textAlign="center"
-    ctx.fillText("게임 오버", W/2, 100)
-    ctx.font="24px sans-serif"
-    ctx.fillText(f"점수: {score}", W/2, 150)
-
-    update_ranking(score)
-    y_pos = 200
-    if ranking:
-        for i,r in enumerate(ranking[:5]):
-            ctx.fillText(f"{i+1}. {r['name']} : {r['score']}", W/2, y_pos)
-            y_pos += 30
-        if len(ranking)<5 or score<ranking[4]['score']:
-            ctx.fillText("5등 안에 못 들었습니다", W/2, y_pos)
-    else:
-        ctx.fillText("랭킹 정보를 불러오는 중...", W/2, y_pos)
+        x = W+size
+        y = random.uniform(0,H)
+        vx, vy = -speed, 0
+    bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
 
 # 게임 업데이트
-spawn_timer = 0
 def update(dt):
-    global score, spawn_timer
-    if not running: return
-    spawn_timer += dt
-    if spawn_timer>=700:
-        spawn_timer=0
+    global last_spawn, score, running
+    if not running:
+        return
+    last_spawn += dt
+    if last_spawn >= spawn_interval:
+        last_spawn = 0
         spawn_bullet()
 
-    # player 이동
-    if keys['left']: player['x']-=player['speed']
-    if keys['right']: player['x']+=player['speed']
-    if keys['up']: player['y']-=player['speed']
-    if keys['down']: player['y']+=player['speed']
+    # 키 이동
+    if keys['left']: player['x'] -= player['speed']
+    if keys['right']: player['x'] += player['speed']
+    if keys['up']: player['y'] -= player['speed']
+    if keys['down']: player['y'] += player['speed']
 
-    # 터치 이동
-    player['x'] += (touch_pos['x']-player['x'])*0.2
-    player['y'] += (touch_pos['y']-player['y'])*0.2
-
-    # 경계
-    player['x'] = max(player['w']/2,min(W-player['w']/2,player['x']))
-    player['y'] = max(player['h']/2,min(H-player['h']/2,player['y']))
+    player['x'] = max(player['w']/2, min(W-player['w']/2, player['x']))
+    player['y'] = max(player['h']/2, min(H-player['h']/2, player['y']))
 
     # 총알 이동
     for b in list(bullets):
         b['x'] += b['vx']
         b['y'] += b['vy']
-        if 0<=b['x']<=W and 0<=b['y']<=H: pass
-        else: bullets.remove(b)
-        # 점수 증가
-        if b['y']>H+50 or b['y']<-50 or b['x']>W+50 or b['x']<-50:
-            score +=1
+        # stage 밖 나가면 제거
+        if b['x']<-b['r'] or b['x']>W+b['r'] or b['y']<-b['r'] or b['y']>H+b['r']:
+            bullets.remove(b)
+            score += 1
 
     # 충돌 체크
     for b in bullets:
-        rx = player['x'] - player['w']/2
-        ry = player['y'] - player['h']/2
-        closest_x = max(rx, min(b['x'], rx+player['w']))
-        closest_y = max(ry, min(b['y'], ry+player['h']))
-        dx = b['x'] - closest_x
-        dy = b['y'] - closest_y
-        # 좌우 판정 0.2배
-        if dx*dx*5 + dy*dy <= b['r']*b['r']:
+        dx = max(player['x']-player['w']/2, min(b['x'], player['x']+player['w']/2)) - b['x']
+        dy = max(player['y']-player['h']/2, min(b['y'], player['y']+player['h']/2)) - b['y']
+        if dx*dx + dy*dy <= b['r']*b['r']:
+            running = False
             game_over()
             break
 
+# 게임 오버 처리
+def game_over():
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'
+    ctx.fillRect(0,0,W,H)
+    ctx.fillStyle = '#fff'
+    ctx.font = '48px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText('게임 오버', W/2, H/2-60)
+    ctx.font = '24px sans-serif'
+    ctx.fillText(f'점수: {score}', W/2, H/2-20)
+    show_ranking()
+
+# 점수 출력
 def draw():
-    if bg_loaded: ctx.drawImage(bg,0,0,W,H)
-    else: ctx.fillStyle="#111"; ctx.fillRect(0,0,W,H)
+    ctx.clearRect(0,0,W,H)
     if player_loaded:
         ctx.drawImage(player_img, player['x']-player['w']/2, player['y']-player['h']/2, player['w'], player['h'])
     else:
-        ctx.fillStyle="#66ff99"; ctx.fillRect(player['x']-player['w']/2, player['y']-player['h']/2, player['w'], player['h'])
+        ctx.fillStyle = '#66ff99'
+        ctx.fillRect(player['x']-player['w']/2, player['y']-player['h']/2, player['w'], player['h'])
     for b in bullets:
-        if bullet_loaded: ctx.drawImage(bullet_img,b['x']-b['r'],b['y']-b['r'],b['r']*2,b['r']*2)
-        else: ctx.fillStyle="#ff6b6b"; ctx.beginPath(); ctx.arc(b['x'],b['y'],b['r'],0,2*math.pi); ctx.fill()
+        if bullet_loaded:
+            ctx.drawImage(bullet_img, b['x']-b['r'], b['y']-b['r'], b['r']*2, b['r']*2)
+        else:
+            ctx.beginPath()
+            ctx.arc(b['x'], b['y'], b['r'],0,2*math.pi)
+            ctx.fillStyle = '#ff6b6b'
+            ctx.fill()
     document['score'].text = f"점수: {score}"
 
 def game_loop():
     update(16)
     draw()
+    if running:
+        window.requestAnimationFrame(lambda ts: game_loop())
 
-# 키보드 이벤트
+# 키 입력
 def on_keydown(ev):
     if ev.key in ('ArrowLeft','a'): keys['left']=True
     if ev.key in ('ArrowRight','d'): keys['right']=True
@@ -231,37 +190,42 @@ def on_keyup(ev):
     if ev.key in ('ArrowUp','w'): keys['up']=False
     if ev.key in ('ArrowDown','s'): keys['down']=False
 
-document.bind("keydown", on_keydown)
-document.bind("keyup", on_keyup)
-
-# 터치 이벤트
+# 터치 이동
 def on_touch(ev):
-    touch = ev.touches[0]
-    touch_pos['x'] = touch.clientX - CANVAS.offsetLeft
-    touch_pos['y'] = touch.clientY - CANVAS.offsetTop
+    player['x'] = ev.touches[0].clientX
+    player['y'] = ev.touches[0].clientY
     ev.preventDefault()
 
-CANVAS.bind("touchstart", on_touch)
-CANVAS.bind("touchmove", on_touch)
+# 랭킹 보여주기
+def show_ranking():
+    def callback(snapshot):
+        data = snapshot.val()
+        scores = sorted([int(v['score']) for v in data.values()], reverse=True)[:5] if data else []
+        html_content = ""
+        for i, s in enumerate(scores):
+            html_content += f"{i+1}위: {s}<br>"
+        if score not in scores:
+            html_content += "5등 안에 못 들었습니다."
+        document['ranking'].html = html_content
+        # 현재 점수 저장
+        new_ref = db.ref("scores").push()
+        new_ref.set({"score": score})
+    db.ref("scores").once("value", callback)
 
-# 게임 시작
 def start_game(ev=None):
-    global running, bullets, score, player
-    running=True
+    global running, bullets, score, last_spawn
     bullets=[]
     score=0
-    player['x']=W/2
-    player['y']=H/2
-
-document['start'].bind("click", start_game)
-
-# 애니메이션 루프
-def loop(timestamp):
+    last_spawn=0
+    player['x'],player['y']=W/2,H/2
+    running=True
     game_loop()
-    window.requestAnimationFrame(loop)
 
-window.requestAnimationFrame(loop)
+document.bind('keydown',on_keydown)
+document.bind('keyup',on_keyup)
+CANVAS.bind('touchmove',on_touch)
+document['start'].bind('click',start_game)
+
 </script>
-
 </body>
 </html>
