@@ -224,7 +224,7 @@ def update(dt):
         player_hit_w = player['w']/2
         player_hit_h = player['h']
         bullet_hit_w = (b['r']*6)*0.25
-        bullet_hit_h = (b['r']*6)*0.25
+        bullet_hit_h = (b['r']*6)*0.5
 
         # 충돌 감지
         rx = player['x'] - player_hit_w/2
@@ -257,7 +257,7 @@ def draw():
             ctx.fillStyle='#ff6b6b'; ctx.fill()
         # ✅ bullet 히트박스 시각화
         bullet_hit_w = (b['r']*6)*0.25
-        bullet_hit_h = (b['r']*6)*0.25
+        bullet_hit_h = (b['r']*6)*0.5
         ctx.strokeStyle='red'
         ctx.strokeRect(b['x']-bullet_hit_w/2,b['y']-bullet_hit_h/2,bullet_hit_w,bullet_hit_h)
 
