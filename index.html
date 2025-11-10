@@ -16,7 +16,9 @@ body {
     gap:12px;
 }
 h1 {margin:0; text-align:center;}
-#controls { display:flex; gap:12px; align-items:center; }
+#controls {
+    display:flex; gap:12px; align-items:center;
+}
 button {
     padding:8px 12px;
     border-radius:6px;
@@ -36,65 +38,7 @@ canvas {
     display:block;
     touch-action: none;
 }
-#name-input-container {
-    display:none;
-    flex-direction:column;
-    align-items:center;
-    margin-top:12px;
-    gap:6px;
-}
-#top-scores { margin-top:12px; text-align:center; }
-input {padding:4px 8px; border-radius:4px; border:none;}
 </style>
-
-<!-- Firebase 공식 CDN 9.22.1 -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
-
-// 🔹 자신의 Firebase 설정 (Firestore 프로젝트 ID 확인!)
-const firebaseConfig = {
-  apiKey: "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
-  authDomain: "aaaa-85ddd.firebaseapp.com",
-  databaseURL: "https://aaaa-85ddd-default-rtdb.firebaseio.com",
-  projectId: "aaaa-85ddd",
-  storageBucket: "aaaa-85ddd.firebasestorage.app",
-  messagingSenderId: "947357162592",
-  appId: "1:947357162592:web:599896666a79b4b219f705",
-  measurementId: "G-KVHXK6GR39"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// 🔹 점수 업로드
-window.uploadScore = async function(name, score) {
-    try {
-        console.log("Uploading:", name, score);
-        await addDoc(collection(db, "scores"), { name: name, score: score });
-        console.log("Upload successful!");
-        await window.showTopScores();  // 업로드 후 상위 5명 표시
-    } catch(err) {
-        console.error("Firebase upload error:", err);
-    }
-};
-
-// 🔹 상위 5명 점수 표시
-window.showTopScores = async function() {
-    const scoresDiv = document.getElementById("top-scores");
-    const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(5));
-    const querySnapshot = await getDocs(q);
-
-    let html = "<h3>Top 5 Players</h3><ol>";
-    querySnapshot.forEach(doc => {
-        const data = doc.data();
-        html += `<li>${data.name}: ${data.score}</li>`;
-    });
-    html += "</ol>";
-    scoresDiv.innerHTML = html;
-};
-</script>
-
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
 </head>
@@ -107,17 +51,8 @@ window.showTopScores = async function() {
 </div>
 <canvas id="game" width="480" height="640"></canvas>
 
-<!-- 이름 입력 영역 -->
-<div id="name-input-container">
-    <input type="text" id="player-name" placeholder="이름 입력">
-    <button id="submit-name">점수 제출</button>
-</div>
-
-<!-- Top 5 점수 표시 영역 -->
-<div id="top-scores"></div>
-
 <script type="text/python3">
-from browser import document, html, timer, window
+from browser import document, html, timer
 import math, random
 
 CANVAS = document['game']
@@ -129,7 +64,7 @@ bullets = []
 spawn_interval = 700
 last_spawn = 0
 running = False
-game_started = False
+game_started = False  # 🔹 게임 시작 여부 플래그
 score = 0
 keys = {'left':False,'right':False,'up':False,'down':False}
 difficulty_timer = 0
@@ -137,6 +72,7 @@ player_loaded = False
 bullet_loaded = False
 bg_loaded = False
 
+# 이미지
 player_img = html.IMG(); player_img.src='player.png'
 player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
 
@@ -146,6 +82,7 @@ bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
+# 총알 생성
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
     size = random.uniform(6,14)
@@ -160,6 +97,7 @@ def spawn_bullet():
         x=STAGE_W+size; y=random.uniform(0,STAGE_H); vx=-speed; vy=random.uniform(-1,1)
     bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
 
+# 업데이트
 def update(dt):
     global last_spawn, score, running, difficulty_timer
     if not running: return
@@ -174,6 +112,7 @@ def update(dt):
             b['vx']*=1.5
             b['vy']*=1.5
 
+    # 키보드 이동
     if keys['left']: player['x']-=player['speed']
     if keys['right']: player['x']+=player['speed']
     if keys['up']: player['y']-=player['speed']
@@ -182,6 +121,7 @@ def update(dt):
     player['x']=max(player['w']/2,min(STAGE_W-player['w']/2,player['x']))
     player['y']=max(player['h']/2,min(STAGE_H-player['h']/2,player['y']))
 
+    # 총알 이동 및 점수
     for b in list(bullets):
         b['x']+=b['vx']
         b['y']+=b['vy']
@@ -189,6 +129,7 @@ def update(dt):
             bullets.remove(b)
             score+=1
 
+    # 충돌 체크
     for b in bullets:
         rx=player['x']-player['w']/2
         ry=player['y']-player['h']/2
@@ -200,6 +141,7 @@ def update(dt):
             running=False
             break
 
+# 그리기
 def draw():
     ctx.clearRect(0,0,STAGE_W,STAGE_H)
     if bg_loaded:
@@ -222,33 +164,30 @@ def draw():
             ctx.fill()
     document['score'].text=f"점수: {score}"
 
+# 🔹 게임 오버 화면 (게임 시작 후만 표시, 정중앙)
 def show_game_over():
     ctx.fillStyle = 'rgba(0,0,0,0.7)'
     ctx.fillRect(0,0,STAGE_W,STAGE_H)
+
     ctx.fillStyle = '#fff'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     center_y = STAGE_H / 2
+
     ctx.font = '48px sans-serif'
     ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
+
     ctx.font = '24px sans-serif'
     ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
-    document['name-input-container'].style.display = 'flex'
 
-def submit_name(ev):
-    name = document['player-name'].value.strip()
-    if name:
-        window.uploadScore(name, score)
-        document['name-input-container'].style.display = 'none'
-
-document['submit-name'].bind('click', submit_name)
-
+# 게임 루프
 def game_loop():
     update(16)
     draw()
     if not running and game_started:
         show_game_over()
 
+# 키보드
 def on_keydown(ev):
     if ev.key in ('ArrowLeft','a'): keys['left']=True
     if ev.key in ('ArrowRight','d'): keys['right']=True
@@ -266,6 +205,7 @@ def on_keyup(ev):
 document.bind('keydown',on_keydown)
 document.bind('keyup',on_keyup)
 
+# 터치 이동
 def on_touch(ev):
     if not running: return
     touch = ev.touches[0]
@@ -277,6 +217,7 @@ def on_touch(ev):
 document['game'].bind('touchstart', on_touch)
 document['game'].bind('touchmove', on_touch)
 
+# 게임 시작
 def start_game(ev=None):
     global running, bullets, score, last_spawn, difficulty_timer, player, game_started
     bullets=[]
@@ -287,11 +228,10 @@ def start_game(ev=None):
     game_started = True
     player['x']=STAGE_W/2
     player['y']=STAGE_H/2
-    document['name-input-container'].style.display = 'none'
-    document['player-name'].value = ''
 
 document['start'].bind('click',start_game)
 
+# 이미지 로딩 루프
 def all_images_loaded():
     return player_img.complete and bullet_img.complete and bg_img.complete
 
