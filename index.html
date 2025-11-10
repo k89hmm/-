@@ -38,27 +38,17 @@ canvas {
     display:block;
     touch-action: none;
 }
-#name-input-container {
-    display:none;
-    flex-direction:column;
-    align-items:center;
-    margin-top:12px;
-    gap:6px;
-}
 #top-scores {
     margin-top:12px;
-    text-align:center;
+    color:#fff;
+    font-family:monospace;
 }
-input {padding:4px 8px; border-radius:4px; border:none;}
 </style>
-
-<!-- Firebase 공식 CDN 9.22.1 -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
-
-// 🔹 자신의 Firebase 설정 입력
-const firebaseConfig = {
+<!-- Firebase CDN 9.22.1 -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js"></script>
+<script>
+  const firebaseConfig = {
     'apiKey': "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
     'authDomain': "aaaa-85ddd.firebaseapp.com",
     'databaseURL': "https://aaaa-85ddd-default-rtdb.firebaseio.com",
@@ -67,35 +57,30 @@ const firebaseConfig = {
     'messagingSenderId': "947357162592",
     'appId': "1:947357162592:web:599896666a79b4b219f705",
     'measurementId': "G-KVHXK6GR39"
-};
+  };
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// 점수 업로드
-window.uploadScore = async function(name, score) {
+  // Brython에서 호출: 상위 5점 가져와 표시
+  async function showTopScores() {
     try {
-        await addDoc(collection(db, "scores"), { name: name, score: score });
-        await window.showTopScores();
-    } catch(err) {
-        console.error("Firebase upload error:", err);
-    }
-};
+      const topScoresDiv = document.getElementById('top-scores');
+      const snapshot = await db.collection('scores')
+        .orderBy('score', 'desc')
+        .limit(5)
+        .get();
 
-// 상위 5명 점수 불러오기
-window.showTopScores = async function() {
-    const scoresDiv = document.getElementById("top-scores");
-    const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(5));
-    const querySnapshot = await getDocs(q);
-
-    let html = "<h3>Top 5 Players</h3><ol>";
-    querySnapshot.forEach(doc => {
+      let html = '<strong>Top 5 Players</strong><br>';
+      snapshot.forEach((doc, idx) => {
         const data = doc.data();
-        html += `<li>${data.name}: ${data.score}</li>`;
-    });
-    html += "</ol>";
-    scoresDiv.innerHTML = html;
-};
+        html += `${idx+1}. ${data.name} - ${data.score}<br>`;
+      });
+      topScoresDiv.innerHTML = html;
+    } catch (err) {
+      console.error('Top Scores 로딩 실패:', err);
+    }
+  }
+  window.showTopScores = showTopScores;
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
@@ -110,13 +95,6 @@ window.showTopScores = async function() {
 </div>
 <canvas id="game" width="480" height="640"></canvas>
 
-<!-- 이름 입력 영역 -->
-<div id="name-input-container">
-    <input type="text" id="player-name" placeholder="이름 입력">
-    <button id="submit-name">점수 제출</button>
-</div>
-
-<!-- Top 5 점수 표시 영역 -->
 <div id="top-scores"></div>
 
 <script type="text/python3">
@@ -142,10 +120,8 @@ bg_loaded = False
 
 player_img = html.IMG(); player_img.src='player.png'
 player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
-
 bullet_img = html.IMG(); bullet_img.src='bullet.png'
 bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
-
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
@@ -236,18 +212,9 @@ def show_game_over():
     ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
     ctx.font = '24px sans-serif'
     ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
-
-    # 🔹 이름 입력 영역 표시
-    document['name-input-container'].style.display = 'flex'
-
-# 🔹 이름 입력 후 점수 업로드
-def submit_name(ev):
-    name = document['player-name'].value.strip()
-    if name:
-        window.uploadScore(name, score)
-        document['name-input-container'].style.display = 'none'
-
-document['submit-name'].bind('click', submit_name)
+    
+    # 🔹 게임 오버 시 상위 5점 표시
+    window.showTopScores()
 
 def game_loop():
     update(16)
@@ -293,8 +260,6 @@ def start_game(ev=None):
     game_started = True
     player['x']=STAGE_W/2
     player['y']=STAGE_H/2
-    document['name-input-container'].style.display = 'none'
-    document['player-name'].value = ''
 
 document['start'].bind('click',start_game)
 
