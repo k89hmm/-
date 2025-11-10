@@ -74,7 +74,7 @@ canvas {
     border-radius:6px;
     cursor:pointer;
     font-size:16px;
-    margin-bottom: 10px;
+    margin:0 5px 10px 5px;
 }
 #overlay #top-scores {
     font-size: 18px;
@@ -120,11 +120,11 @@ window.showTopScores = async function(){
         const scoresRef = query(ref(db, 'ranking'), orderByChild('score'), limitToLast(5));
         const snapshot = await get(scoresRef);
         const list = [];
-        snapshot.forEach(child => { list.push(child.val()); });
+        snapshot.forEach(child => { list.append(child.val()) if hasattr(list,'append') else list.append(child.val()) })
         list.sort((a,b)=>b.score - a.score);
 
         let html = "<h3>🏆 상위 5위</h3>";
-        list.forEach((item,i)=>{ html += `${i+1}. ${item.name} - ${item.score}<br>`; });
+        list.forEach((item,i)=>{ html += f"{i+1}. {item.name} - {item.score}<br>"; });
         const div = document.getElementById("top-scores");
         div.innerHTML = html;
     } catch(err) {
@@ -145,12 +145,15 @@ window.showTopScores = async function(){
 </div>
 <canvas id="game" width="480" height="640"></canvas>
 
-<!-- ✅ 오버레이: 게임 오버 + 이름 입력 + 상위 5위 -->
+<!-- ✅ 오버레이: 게임 오버 + 이름 입력 + 점수 제출 + 재시작 + 상위 5위 -->
 <div id="overlay">
   <h2>게임 오버</h2>
   <p id="final-score">최종 점수: 0</p>
-  <input type="text" id="player-name" placeholder="이름 입력">
-  <button id="submit-name">점수 제출</button>
+  <div>
+    <input type="text" id="player-name" placeholder="이름 입력">
+    <button id="submit-name">점수 제출</button>
+    <button id="restart-game">재시작</button>
+  </div>
   <div id="top-scores"></div>
 </div>
 
@@ -257,6 +260,14 @@ def submit_name(ev):
         document['overlay'].style.display = 'none'
 
 document['submit-name'].bind('click', submit_name)
+
+# ✅ 재시작 버튼
+def restart_game(ev):
+    document['overlay'].style.display = 'none'
+    document['player-name'].value = ''
+    start_game()
+
+document['restart-game'].bind('click', restart_game)
 
 def game_loop():
     update(16); draw()
