@@ -52,8 +52,8 @@ canvas {
 <canvas id="game" width="480" height="640"></canvas>
 
 <script type="text/python3">
-from browser import document, html, timer, window
-import math, random, json
+from browser import document, html, timer
+import math, random
 
 CANVAS = document['game']
 ctx = CANVAS.getContext('2d')
@@ -67,19 +67,6 @@ running = False
 score = 0
 keys = {'left':False,'right':False,'up':False,'down':False}
 difficulty_timer = 0
-player_loaded = False
-bullet_loaded = False
-bg_loaded = False
-
-# 이미지
-player_img = html.IMG(); player_img.src='player.png'
-player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
-
-bullet_img = html.IMG(); bullet_img.src='bullet.png'
-bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
-
-bg_img = html.IMG(); bg_img.src='background.png'
-bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
 # 총알 생성 (사방)
 def spawn_bullet():
@@ -128,7 +115,7 @@ def update(dt):
             bullets.remove(b)
             score+=1
 
-    # 충돌 체크 (좌우 20%, 상하 50%)
+    # 충돌 체크
     for b in bullets:
         rx=player['x']-player['w']/2
         ry=player['y']-player['h']/2
@@ -138,35 +125,43 @@ def update(dt):
         dy=(b['y']-closest_y)*0.5
         if dx*dx+dy*dy<=b['r']*b['r']:
             running=False
-            show_game_over()
             break
 
 # 그리기
 def draw():
     ctx.clearRect(0,0,STAGE_W,STAGE_H)
-    if bg_loaded:
-        ctx.drawImage(bg_img,0,0,STAGE_W,STAGE_H)
-    if player_loaded:
-        ratio=player_img.naturalWidth/player_img.naturalHeight
-        draw_w=player['w']/2
-        draw_h=draw_w/ratio
-        ctx.drawImage(player_img,player['x']-draw_w/2,player['y']-draw_h/2,draw_w,draw_h)
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0,0,STAGE_W,STAGE_H)
+    # 플레이어
+    ctx.fillStyle='#2b6df6'
+    ctx.fillRect(player['x']-player['w']/2, player['y']-player['h']/2, player['w'], player['h'])
+    # 총알
+    ctx.fillStyle='#ff6b6b'
     for b in bullets:
-        if bullet_loaded:
-            ratio=bullet_img.naturalWidth/bullet_img.naturalHeight
-            draw_w=b['r']*6
-            draw_h=draw_w/ratio
-            ctx.drawImage(bullet_img,b['x']-draw_w/2,b['y']-draw_h/2,draw_w,draw_h)
-        else:
-            ctx.beginPath()
-            ctx.arc(b['x'],b['y'],b['r']*3,0,2*math.pi)
-            ctx.fillStyle='#ff6b6b'
-            ctx.fill()
+        ctx.beginPath()
+        ctx.arc(b['x'],b['y'],b['r'],0,2*math.pi)
+        ctx.fill()
     document['score'].text=f"점수: {score}"
 
+# 게임 오버 화면
+def show_game_over():
+    ctx.fillStyle='rgba(0,0,0,0.7)'
+    ctx.fillRect(0,0,STAGE_W,STAGE_H)
+    ctx.fillStyle='#fff'
+    ctx.font='48px sans-serif'
+    ctx.textAlign='center'
+    ctx.fillText('게임 오버', STAGE_W/2, STAGE_H/2-20)
+    ctx.font='24px sans-serif'
+    ctx.fillText(f'최종 점수: {score}', STAGE_W/2, STAGE_H/2+20)
+
+# 게임 루프
 def game_loop():
-    update(16)
-    draw()
+    if running:
+        update(16)
+        draw()
+    else:
+        draw()
+        show_game_over()
 
 # 키보드
 def on_keydown(ev):
@@ -175,7 +170,6 @@ def on_keydown(ev):
     if ev.key in ('ArrowUp','w'): keys['up']=True
     if ev.key in ('ArrowDown','s'): keys['down']=True
     if ev.key in ('ArrowLeft','ArrowRight','ArrowUp','ArrowDown'): ev.preventDefault()
-
 def on_keyup(ev):
     if ev.key in ('ArrowLeft','a'): keys['left']=False
     if ev.key in ('ArrowRight','d'): keys['right']=False
@@ -194,13 +188,12 @@ def on_touch(ev):
     player['x'] = (touch.clientX - rect.left) * (STAGE_W / rect.width)
     player['y'] = (touch.clientY - rect.top) * (STAGE_H / rect.height)
     ev.preventDefault()
-
 document['game'].bind('touchstart', on_touch)
 document['game'].bind('touchmove', on_touch)
 
 # 게임 시작
 def start_game(ev=None):
-    global running, bullets, score, last_spawn, difficulty_timer, player
+    global running, bullets, score, last_spawn, difficulty_timer
     bullets=[]
     score=0
     last_spawn=0
@@ -208,35 +201,14 @@ def start_game(ev=None):
     running=True
     player['x']=STAGE_W/2
     player['y']=STAGE_H/2
-
 document['start'].bind('click',start_game)
 
-# 게임 오버 + 랭킹
-def show_game_over():
-    ctx.fillStyle='rgba(0,0,0,0.7)'
-    ctx.fillRect(0,0,STAGE_W,STAGE_H)
-    ctx.fillStyle='#fff'
-    ctx.font='48px sans-serif'
-    ctx.textAlign='center'
-    ctx.fillText('게임 오버',STAGE_W/2,STAGE_H/2-60)
-    ctx.font='24px sans-serif'
-    ctx.fillText(f'최종 점수: {score}',STAGE_W/2,STAGE_H/2-20)
-    
-# 루프
-def all_images_loaded():
-    return player_img.complete and bullet_img.complete and bg_img.complete
-
-def start_loop_when_ready(ts):
-    if all_images_loaded():
-        timer.request_animation_frame(loop)
-    else:
-        timer.set_timeout(lambda: start_loop_when_ready(ts),50)
-
+# 애니메이션 루프
 def loop(ts):
     game_loop()
     timer.request_animation_frame(loop)
 
-start_loop_when_ready(0)
+timer.request_animation_frame(loop)
 </script>
 </body>
 </html>
