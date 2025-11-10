@@ -150,7 +150,10 @@ window.showTopScores = async function(){
   <h2>게임 오버</h2>
   <p id="final-score">최종 점수: 0</p>
   <input type="text" id="player-name" placeholder="이름 입력">
-  <button id="submit-name">점수 제출</button>
+  <div style="display:flex; gap:10px;">
+      <button id="submit-name">점수 제출</button>
+      <button id="restart-game">재시작</button>
+  </div>
   <div id="top-scores"></div>
 </div>
 
@@ -216,20 +219,23 @@ def update(dt):
         b['x']+=b['vx']; b['y']+=b['vy']
         if b['x']<-50 or b['x']>STAGE_W+50 or b['y']<-50 or b['y']>STAGE_H+50:
             bullets.remove(b); score+=1
-    # ✅ 충돌 감지: 히트박스 적용
-    player_hit_w = player['w']/2
-    player_hit_h = player['h']
     for b in bullets:
-        bullet_hit_w = b['r']*2*6
-        bullet_hit_h = bullet_hit_w * 1.5
+        # ✅ 히트박스 기준: player 가로 1/2, bullet 가로세로 1/4
+        player_hit_w = player['w']/2
+        player_hit_h = player['h']
+        bullet_hit_w = (b['r']*6)*0.25
+        bullet_hit_h = (b['r']*6)*0.25
+
+        # 충돌 감지
         rx = player['x'] - player_hit_w/2
         ry = player['y'] - player_hit_h/2
         closest_x = max(rx, min(b['x'], rx + player_hit_w))
         closest_y = max(ry, min(b['y'], ry + player_hit_h))
         dx = b['x'] - closest_x
         dy = b['y'] - closest_y
-        if dx*dx + dy*dy <= (bullet_hit_h/2)**2:
-            running=False; break
+        if dx*dx + dy*dy <= max(bullet_hit_w, bullet_hit_h)**2:
+            running=False
+            break
 
 def draw():
     ctx.clearRect(0,0,STAGE_W,STAGE_H)
@@ -238,6 +244,9 @@ def draw():
         ratio=player_img.naturalWidth/player_img.naturalHeight
         draw_w=player['w']/2; draw_h=draw_w/ratio
         ctx.drawImage(player_img,player['x']-draw_w/2,player['y']-draw_h/2,draw_w,draw_h)
+        # ✅ player 히트박스 시각화
+        ctx.strokeStyle = 'lime'
+        ctx.strokeRect(player['x']-player['w']/4, player['y']-player['h']/2, player['w']/2, player['h'])
     for b in bullets:
         if bullet_loaded:
             ratio=bullet_img.naturalWidth/bullet_img.naturalHeight
@@ -246,16 +255,12 @@ def draw():
         else:
             ctx.beginPath(); ctx.arc(b['x'],b['y'],b['r']*3,0,2*math.pi)
             ctx.fillStyle='#ff6b6b'; ctx.fill()
-    # ✅ 히트박스 시각화
-    ctx.strokeStyle = 'lime'; ctx.lineWidth = 2
-    player_hit_w = player['w']/2
-    player_hit_h = player['h']
-    ctx.strokeRect(player['x']-player_hit_w/2, player['y']-player_hit_h/2, player_hit_w, player_hit_h)
-    for b in bullets:
-        bullet_hit_w = b['r']*2*6
-        bullet_hit_h = bullet_hit_w * 1.5
-        ctx.strokeStyle = 'red'; ctx.lineWidth = 2
-        ctx.strokeRect(b['x']-bullet_hit_w/2, b['y']-bullet_hit_h/2, bullet_hit_w, bullet_hit_h)
+        # ✅ bullet 히트박스 시각화
+        bullet_hit_w = (b['r']*6)*0.25
+        bullet_hit_h = (b['r']*6)*0.25
+        ctx.strokeStyle='red'
+        ctx.strokeRect(b['x']-bullet_hit_w/2,b['y']-bullet_hit_h/2,bullet_hit_w,bullet_hit_h)
+
     document['score'].text=f"점수: {score}"
 
 def show_game_over():
@@ -275,6 +280,13 @@ def submit_name(ev):
         document['overlay'].style.display = 'none'
 
 document['submit-name'].bind('click', submit_name)
+
+# ✅ 재시작 버튼
+def restart_game(ev):
+    document['overlay'].style.display = 'none'
+    window.start_game()
+
+document['restart-game'].bind('click', restart_game)
 
 def game_loop():
     update(16); draw()
@@ -314,6 +326,8 @@ def start_game(ev=None):
     player['x']=STAGE_W/2; player['y']=STAGE_H/2
     document['overlay'].style.display = 'none'
     document['player-name'].value = ''
+
+window.start_game = start_game
 
 document['start'].bind('click',start_game)
 
