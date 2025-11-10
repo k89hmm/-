@@ -1,98 +1,102 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>좌형의 안민철 피하기</title>
-<style>
-  body {
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial;
-    display:flex; flex-direction:column; align-items:center; gap:12px; margin:20px; background:#111; color:#eee;
-  }
-  #header {display:flex; align-items:center; gap:12px;}
-  #header h1 {margin:0;}
-  button {padding:8px 12px; border-radius:6px; border:none; background:#2b6df6; color:white; cursor:pointer;}
-  #score {font-weight:700;}
-  canvas {border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,0.6);}
-</style>
-<script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+  <title>좌형의 안민철 피하기</title>
+  <style>
+    body {
+      margin:0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial;
+      background:#111;
+      color:#eee;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:8px;
+      overflow:hidden; /* 모바일 스크롤 방지 */
+    }
+    #controls {
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    button {
+      padding:8px 12px;
+      border:none;
+      border-radius:6px;
+      background:#2b6df6;
+      color:white;
+      cursor:pointer;
+    }
+    #score { font-weight:700; }
+    canvas { border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,0.6); display:block; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
 </head>
 <body onload="brython()">
-
-<div id="header">
   <h1>좌형의 안민철 피하기</h1>
-  <button id="start">게임 시작</button>
-  <div id="score">점수: 0</div>
-</div>
-<canvas id="game" width="480" height="640"></canvas>
+  <div id="controls">
+    <button id="start">게임 시작</button>
+    <div id="score">점수: 0</div>
+  </div>
+  <canvas id="game" width="480" height="640"></canvas>
 
 <script type="text/python3">
 from browser import document, html, timer, window
 import math, random, json
 
+# === Canvas & Context ===
 CANVAS = document['game']
 ctx = CANVAS.getContext('2d')
 W, H = CANVAS.width, CANVAS.height
 
-# 플레이어 설정
-player = {'x': W/2, 'y': H/2, 'w': 50, 'h': 50, 'speed':6}
+# === Game Variables ===
+player = {'x': W/2, 'y': H/2, 'w': 50, 'h': 50, 'speed': 6}
 bullets = []
 spawn_interval = 700
 last_spawn = 0
 running = False
 score = 0
 keys = {'left':False,'right':False,'up':False,'down':False}
+difficulty_timer = 0
 player_loaded = False
+bullet_loaded = False
+bg_loaded = False
+ranking = []
 
-# 플레이어 이미지
+# === Load Images ===
 player_img = html.IMG()
 player_img.src = 'player.png'
-player_img.onload = lambda ev: globals().update({'player_loaded':True})
+player_img.bind('load', lambda e: globals().update(player_loaded=True))
 
-# 배경 이미지
-bg_img = html.IMG()
-bg_img.src = 'background.jpg'
-bg_loaded = False
-def bg_loaded_fn(ev):
-    global bg_loaded
-    bg_loaded = True
-bg_img.bind('load', bg_loaded_fn)
-
-# 총알 이미지 (원본 비율 유지)
 bullet_img = html.IMG()
 bullet_img.src = 'bullet.png'
-bullet_loaded = False
-def bullet_loaded_fn(ev):
-    global bullet_loaded
-    bullet_loaded = True
-bullet_img.bind('load', bullet_loaded_fn)
+bullet_img.bind('load', lambda e: globals().update(bullet_loaded=True))
 
-# 랭킹 초기화
-ranking = [0]*5
+bg_img = html.IMG()
+bg_img.src = 'background.jpg'
+bg_img.bind('load', lambda e: globals().update(bg_loaded=True))
 
+# === Ranking Storage ===
 def load_ranking():
     global ranking
     data = window.localStorage.getItem('ranking')
-    ranking = [0]*5
     if data:
         try:
-            parsed = json.loads(data)
-            scores = [int(item.get('score',0)) for item in parsed]
-            ranking = sorted(scores, reverse=True)[:5]
+            ranking = json.loads(data)
         except:
-            try:
-                ranking = [int(x) for x in data.split(',')]
-            except:
-                ranking = [0]*5
+            ranking = []
+    else:
+        ranking = []
 
 def save_ranking():
-    data = [{'name':'플레이어', 'score':s} for s in ranking]
-    window.localStorage.setItem('ranking', json.dumps(data))
+    window.localStorage.setItem('ranking', json.dumps(ranking))
 
 load_ranking()
 
-# 총알 생성
+# === Spawn Bullets ===
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
     size = random.uniform(6,14)
@@ -100,35 +104,36 @@ def spawn_bullet():
     if side=='top':
         x = random.uniform(0,W)
         y = -size
-        vx = 0
+        vx = random.uniform(-0.6,0.6)
         vy = speed
     elif side=='bottom':
         x = random.uniform(0,W)
         y = H+size
-        vx = 0
+        vx = random.uniform(-0.6,0.6)
         vy = -speed
     elif side=='left':
         x = -size
         y = random.uniform(0,H)
         vx = speed
-        vy = 0
+        vy = random.uniform(-0.6,0.6)
     else: # right
         x = W+size
         y = random.uniform(0,H)
         vx = -speed
-        vy = 0
+        vy = random.uniform(-0.6,0.6)
     bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
 
+# === Update Game ===
 def update(dt):
-    global last_spawn, score, running
-    if not running: return
-
+    global last_spawn, score, difficulty_timer
+    if not running:
+        return
     last_spawn += dt
+    difficulty_timer += dt
     if last_spawn >= spawn_interval:
-        last_spawn = 0
+        last_spawn=0
         spawn_bullet()
 
-    # 플레이어 이동
     if keys['left']: player['x'] -= player['speed']
     if keys['right']: player['x'] += player['speed']
     if keys['up']: player['y'] -= player['speed']
@@ -137,84 +142,61 @@ def update(dt):
     player['x'] = max(player['w']/2,min(W-player['w']/2,player['x']))
     player['y'] = max(player['h']/2,min(H-player['h']/2,player['y']))
 
-    # 총알 이동
     for b in list(bullets):
         b['x'] += b['vx']
         b['y'] += b['vy']
-        if b['x'] < -50 or b['x']>W+50 or b['y']<-50 or b['y']>H+50:
+        if b['x']<-b['r'] or b['x']>W+b['r'] or b['y']<-b['r'] or b['y']>H+b['r']:
             bullets.remove(b)
             score += 1
 
-    # 히트 체크 (좌우 판정 20%, 상하 100%)
+    # 히트박스 판정 (좌우 20% 축소)
     for b in bullets:
-        dx = abs(b['x'] - player['x'])
-        dy = abs(b['y'] - player['y'])
-        if dx <= (player['w']/2 * 0.2 + b['r']) and dy <= (player['h']/2 + b['r']):
-            running = False
+        rx = player['x'] - player['w']/2*0.2
+        ry = player['y'] - player['h']/2
+        closest_x = max(rx, min(b['x'], rx + player['w']*0.2))
+        closest_y = max(ry, min(b['y'], ry + player['h']))
+        dx = b['x'] - closest_x
+        dy = b['y'] - closest_y
+        if dx*dx + dy*dy <= b['r']*b['r']:
             game_over()
             break
 
+# === Draw Game ===
 def draw():
     # 배경
     if bg_loaded:
-        ctx.globalAlpha = 1.0
+        ctx.globalAlpha=1.0
         ctx.drawImage(bg_img,0,0,W,H)
     else:
-        ctx.fillStyle='#111'
+        ctx.fillStyle='#0b1220'
         ctx.fillRect(0,0,W,H)
-
-    # 총알
-    for b in bullets:
-        if bullet_loaded:
-            ctx.drawImage(bullet_img, b['x']-b['r'], b['y']-b['r'], b['r']*2, b['r']*2)
-        else:
-            ctx.fillStyle='#ff6b6b'
-            ctx.beginPath()
-            ctx.arc(b['x'],b['y'],b['r'],0,2*math.pi)
-            ctx.fill()
 
     # 플레이어
     if player_loaded:
-        ctx.drawImage(player_img, player['x']-player['w']/2, player['y']-player['h']/2, player['w'], player['h'])
+        w = player['w']
+        h = player['h']
+        ctx.drawImage(player_img, player['x']-w/2, player['y']-h/2, w, h)
     else:
         ctx.fillStyle='#66ff99'
         ctx.fillRect(player['x']-player['w']/2, player['y']-player['h']/2, player['w'], player['h'])
 
-    # 점수
+    # 총알
+    for b in bullets:
+        if bullet_loaded:
+            w = b['r']*3
+            h = b['r']*3
+            ctx.drawImage(bullet_img,b['x']-w/2,b['y']-h/2,w,h)
+        else:
+            ctx.beginPath()
+            ctx.arc(b['x'],b['y'],b['r'],0,2*math.pi)
+            ctx.fillStyle='#ff6b6b'
+            ctx.fill()
+
     document['score'].text = f"점수: {score}"
 
-def game_loop():
-    update(16)
-    draw()
-
-# 키 입력
-def on_keydown(ev):
-    if ev.key in ('ArrowLeft','a'): keys['left']=True
-    if ev.key in ('ArrowRight','d'): keys['right']=True
-    if ev.key in ('ArrowUp','w'): keys['up']=True
-    if ev.key in ('ArrowDown','s'): keys['down']=True
-def on_keyup(ev):
-    if ev.key in ('ArrowLeft','a'): keys['left']=False
-    if ev.key in ('ArrowRight','d'): keys['right']=False
-    if ev.key in ('ArrowUp','w'): keys['up']=False
-    if ev.key in ('ArrowDown','s'): keys['down']=False
-
-document.bind('keydown',on_keydown)
-document.bind('keyup',on_keyup)
-
-# 게임 시작
-def start_game(ev=None):
-    global running, bullets, score
-    bullets = []
-    score = 0
-    player['x'], player['y'] = W/2, H/2
-    running = True
-
-document['start'].bind('click',start_game)
-
-# 게임 오버 처리
+# === Game Over ===
 def game_over():
-    global running
+    global running, ranking
     running=False
     ctx.globalAlpha=0.5
     ctx.fillStyle='#000'
@@ -228,22 +210,73 @@ def game_over():
     ctx.font='24px sans-serif'
     ctx.fillText(f'점수: {score}',W/2,150)
 
-    # 랭킹 처리
     load_ranking()
-    if score > min(ranking):
+    if len(ranking)<5 or score>min(ranking):
         ranking.append(score)
         ranking.sort(reverse=True)
         ranking = ranking[:5]
         save_ranking()
 
     ctx.font='20px sans-serif'
-    y0 = 200
+    y0=200
     for i,s in enumerate(ranking):
-        ctx.fillText(f'{i+1}등: {s}',W/2, y0 + i*30)
-    if score < min(ranking):
-        ctx.fillText('5등 안에 못 들었습니다', W/2, y0 + 5*30)
+        ctx.fillText(f'{i+1}등: {s}',W/2,y0+i*30)
+    if len(ranking)>=5 and score<min(ranking):
+        ctx.fillText('5등 안에 못 들었습니다',W/2,y0+5*30)
 
-timer.set_interval(game_loop, 16)
+# === Input ===
+def on_keydown(ev):
+    if ev.key in ('ArrowLeft','a'): keys['left']=True
+    if ev.key in ('ArrowRight','d'): keys['right']=True
+    if ev.key in ('ArrowUp','w'): keys['up']=True
+    if ev.key in ('ArrowDown','s'): keys['down']=True
+
+def on_keyup(ev):
+    if ev.key in ('ArrowLeft','a'): keys['left']=False
+    if ev.key in ('ArrowRight','d'): keys['right']=False
+    if ev.key in ('ArrowUp','w'): keys['up']=False
+    if ev.key in ('ArrowDown','s'): keys['down']=False
+
+# 터치 이동
+touch_start = {'x':0,'y':0}
+def on_touch_start(ev):
+    ev.preventDefault()
+    t = ev.touches[0]
+    touch_start['x'], touch_start['y'] = t.clientX, t.clientY
+def on_touch_move(ev):
+    ev.preventDefault()
+    t = ev.touches[0]
+    dx = t.clientX - touch_start['x']
+    dy = t.clientY - touch_start['y']
+    player['x'] += dx
+    player['y'] += dy
+    touch_start['x'], touch_start['y'] = t.clientX, t.clientY
+
+document.bind('keydown',on_keydown)
+document.bind('keyup',on_keyup)
+document['game'].bind('touchstart',on_touch_start)
+document['game'].bind('touchmove',on_touch_move)
+
+# === Start Game ===
+def start_game(ev=None):
+    global running, bullets, score, last_spawn, difficulty_timer, player
+    bullets=[]
+    score=0
+    last_spawn=0
+    difficulty_timer=0
+    player['x']=W/2
+    player['y']=H/2
+    running=True
+
+document['start'].bind('click',start_game)
+
+# === Game Loop ===
+def loop(ts):
+    update(16)
+    draw()
+    timer.request_animation_frame(loop)
+
+timer.request_animation_frame(loop)
 </script>
 </body>
 </html>
