@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>좌형의 안민철 피하기</title>
 <style>
-/* 기존 CSS 그대로 */
 body {
     margin:0; padding:20px;
     background:#111;
@@ -40,41 +39,8 @@ canvas {
     touch-action: none;
 }
 </style>
-
-<!-- Brython -->
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
-
-<!-- Firebase SDK (v9 모듈형, 실제 존재하는 버전으로 변경) -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-
-// 🔹 Firebase 설정 (자신의 Firebase 설정으로 교체)
-const firebaseConfig = {
-    'apiKey': "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
-    'authDomain': "aaaa-85ddd.firebaseapp.com",
-    'databaseURL': "https://aaaa-85ddd-default-rtdb.firebaseio.com",
-    'projectId': "aaaa-85ddd",
-    'storageBucket': "aaaa-85ddd.firebasestorage.app",
-    'messagingSenderId': "947357162592",
-    'appId': "1:947357162592:web:599896666a79b4b219f705",
-    'measurementId': "G-KVHXK6GR39"
-};
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// 🔹 Brython에서 호출할 수 있도록 전역 함수 등록
-window.uploadScore = async (playerName, playerScore) => {
-    try {
-        await addDoc(collection(db, "scores"), { name: playerName, score: playerScore, ts: Date.now() });
-        console.log("점수 업로드 성공");
-    } catch (e) {
-        console.error("점수 업로드 실패", e);
-    }
-};
-</script>
-
 </head>
 <body onload="brython()">
 
@@ -89,7 +55,6 @@ window.uploadScore = async (playerName, playerScore) => {
 from browser import document, html, timer, window
 import math, random
 
-# 기존 코드 전부 그대로
 CANVAS = document['game']
 ctx = CANVAS.getContext('2d')
 STAGE_W, STAGE_H = 480, 640
@@ -107,10 +72,13 @@ player_loaded = False
 bullet_loaded = False
 bg_loaded = False
 
+# 이미지
 player_img = html.IMG(); player_img.src='player.png'
 player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
+
 bullet_img = html.IMG(); bullet_img.src='bullet.png'
 bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
+
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
@@ -166,13 +134,7 @@ def update(dt):
         dy=(b['y']-closest_y)*0.5
         if dx*dx+dy*dy<=b['r']*b['r']:
             running=False
-            # 🔹 게임 오버 후 Firebase 업로드
-            if game_started:
-                def ask_name():
-                    name = window.prompt("플레이어 이름을 입력하세요")
-                    if name:
-                        window.uploadScore(name, score)
-                ask_name()
+            ask_name_and_upload()
             break
 
 def draw():
@@ -200,12 +162,15 @@ def draw():
 def show_game_over():
     ctx.fillStyle = 'rgba(0,0,0,0.7)'
     ctx.fillRect(0,0,STAGE_W,STAGE_H)
+
     ctx.fillStyle = '#fff'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     center_y = STAGE_H / 2
+
     ctx.font = '48px sans-serif'
     ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
+
     ctx.font = '24px sans-serif'
     ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
 
@@ -215,21 +180,23 @@ def game_loop():
     if not running and game_started:
         show_game_over()
 
-# 키보드, 터치, 루프, 시작 버튼 등 기존 코드 그대로
 def on_keydown(ev):
     if ev.key in ('ArrowLeft','a'): keys['left']=True
     if ev.key in ('ArrowRight','d'): keys['right']=True
     if ev.key in ('ArrowUp','w'): keys['up']=True
     if ev.key in ('ArrowDown','s'): keys['down']=True
     if ev.key in ('ArrowLeft','ArrowRight','ArrowUp','ArrowDown'): ev.preventDefault()
+
 def on_keyup(ev):
     if ev.key in ('ArrowLeft','a'): keys['left']=False
     if ev.key in ('ArrowRight','d'): keys['right']=False
     if ev.key in ('ArrowUp','w'): keys['up']=False
     if ev.key in ('ArrowDown','s'): keys['down']=False
     if ev.key in ('ArrowLeft','ArrowRight','ArrowUp','ArrowDown'): ev.preventDefault()
+
 document.bind('keydown',on_keydown)
 document.bind('keyup',on_keyup)
+
 def on_touch(ev):
     if not running: return
     touch = ev.touches[0]
@@ -237,6 +204,7 @@ def on_touch(ev):
     player['x'] = (touch.clientX - rect.left) * (STAGE_W / rect.width)
     player['y'] = (touch.clientY - rect.top) * (STAGE_H / rect.height)
     ev.preventDefault()
+
 document['game'].bind('touchstart', on_touch)
 document['game'].bind('touchmove', on_touch)
 
@@ -250,19 +218,84 @@ def start_game(ev=None):
     game_started = True
     player['x']=STAGE_W/2
     player['y']=STAGE_H/2
+
 document['start'].bind('click',start_game)
 
 def all_images_loaded():
     return player_img.complete and bullet_img.complete and bg_img.complete
+
 def start_loop_when_ready(ts):
     if all_images_loaded():
         timer.request_animation_frame(loop)
     else:
         timer.set_timeout(lambda: start_loop_when_ready(ts),50)
+
 def loop(ts):
     game_loop()
     timer.request_animation_frame(loop)
+
 start_loop_when_ready(0)
+
+# 🔹 추가: 게임 오버 후 이름 입력 및 Firebase 업로드
+def ask_name_and_upload():
+    show_game_over()
+    name = window.prompt("플레이어 이름을 입력하세요:", "익명")
+    if name:
+        window.uploadScore(name, score)
 </script>
+
+<!-- 🔹 Firebase 업로드 스크립트 -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.31.0/firebase-app.js";
+import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/9.31.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+async function uploadScore(name, score) {
+    try {
+        await addDoc(collection(db, "scores"), { name: name, score: score });
+        await showTopScores();
+    } catch(e) { console.error(e); }
+}
+
+async function showTopScores() {
+    const scoresDiv = document.createElement('div');
+    scoresDiv.id = 'top-scores';
+    scoresDiv.style.color = '#fff';
+    scoresDiv.style.fontSize = '20px';
+    scoresDiv.style.textAlign = 'center';
+    scoresDiv.style.marginTop = '10px';
+
+    const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(5));
+    const querySnapshot = await getDocs(q);
+
+    let html = "<br>🏆 Top 5 Players 🏆<br>";
+    let rank = 1;
+    querySnapshot.forEach(doc => {
+        const data = doc.data();
+        html += `${rank}. ${data.name} : ${data.score}<br>`;
+        rank++;
+    });
+
+    const canvasParent = document.getElementById('game').parentElement;
+    const existing = document.getElementById('top-scores');
+    if (existing) existing.remove();
+    canvasParent.appendChild(scoresDiv);
+    scoresDiv.innerHTML = html;
+}
+
+window.uploadScore = uploadScore;
+</script>
+
 </body>
 </html>
