@@ -38,8 +38,6 @@ canvas {
     display:block;
     touch-action: none;
 }
-
-/* ✅ 오버레이 스타일 */
 #overlay {
     position: absolute;
     top: 0; left: 50%;
@@ -166,12 +164,15 @@ running = False
 game_started = False
 score = 0
 last_score_checkpoint = 0
-extra_bullets_per_10_score = 2
 keys = {'left':False,'right':False,'up':False,'down':False}
 difficulty_timer = 0
 player_loaded = False
 bullet_loaded = False
 bg_loaded = False
+
+# ✅ 점수 기반 bullet 증가
+base_bullet_count = 3
+current_bullet_count = base_bullet_count
 
 # 이미지 로딩
 player_img = html.IMG(); player_img.src='player.png'
@@ -202,15 +203,15 @@ def spawn_bullet():
     bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
 
 def update(dt):
-    global last_spawn, score, running, difficulty_timer, last_score_checkpoint
+    global last_spawn, score, running, difficulty_timer, current_bullet_count
     if not running: return
     last_spawn += dt
     difficulty_timer += dt
-    if last_spawn >= spawn_interval: last_spawn = 0; spawn_bullet()
     if difficulty_timer >= 5000:
         difficulty_timer = 0
         for b in bullets: b['vx']*=1.5; b['vy']*=1.5
 
+    # 키보드 이동
     if keys['left']: player['x']-=player['speed']
     if keys['right']: player['x']+=player['speed']
     if keys['up']: player['y']-=player['speed']
@@ -218,18 +219,22 @@ def update(dt):
     player['x']=max(player['w']/2,min(STAGE_W-player['w']/2,player['x']))
     player['y']=max(player['h']/2,min(STAGE_H-player['h']/2,player['y']))
 
+    # bullet 이동
     for b in list(bullets):
         b['x']+=b['vx']; b['y']+=b['vy']
         if b['x']<-50 or b['x']>STAGE_W+50 or b['y']<-50 or b['y']>STAGE_H+50:
             bullets.remove(b)
             score += 1
 
-    # ✅ 점수 10점 단위마다 bullet 추가
-    if score // 10 > last_score_checkpoint // 10:
-        for _ in range(extra_bullets_per_10_score):
+    # ✅ 점수 10점 단위마다 stage bullet 개수 2개씩 증가
+    new_bullet_count = base_bullet_count + (score // 10) * 2
+    if new_bullet_count > current_bullet_count:
+        # 부족한 bullet 수만큼 spawn
+        for _ in range(new_bullet_count - len(bullets)):
             spawn_bullet()
-        last_score_checkpoint = score
+        current_bullet_count = new_bullet_count
 
+    # 충돌 체크
     for b in bullets:
         player_hit_w = player['w']/2
         player_hit_h = player['h']
@@ -289,6 +294,7 @@ def game_loop():
     update(16); draw()
     if not running and game_started: show_game_over()
 
+# 키보드
 def on_keydown(ev):
     if ev.key in ('ArrowLeft','a'): keys['left']=True
     if ev.key in ('ArrowRight','d'): keys['right']=True
@@ -303,9 +309,10 @@ def on_keyup(ev):
     if ev.key in ('ArrowDown','s'): keys['down']=False
     if ev.key in ('ArrowLeft','ArrowRight','ArrowUp','ArrowDown'): ev.preventDefault()
 
-document.bind('keydown',on_keydown); document.bind('keyup',on_keyup)
+document.bind('keydown',on_keydown)
+document.bind('keyup',on_keyup)
 
-# ✅ 모바일 터치
+# 모바일 터치
 def on_touch_start(ev):
     global touch_start_player_x, touch_start_player_y, touch_start_x, touch_start_y
     if not running: return
@@ -335,12 +342,16 @@ document['game'].bind('touchstart', on_touch_start)
 document['game'].bind('touchmove', on_touch_move)
 
 def start_game(ev=None):
-    global running, bullets, score, last_spawn, difficulty_timer, player, game_started, last_score_checkpoint
-    bullets=[]; score=0; last_spawn=0; difficulty_timer=0; last_score_checkpoint=0
+    global running, bullets, score, last_spawn, difficulty_timer, player, game_started, current_bullet_count
+    bullets=[]; score=0; last_spawn=0; difficulty_timer=0
     running=True; game_started=True
     player['x']=STAGE_W/2; player['y']=STAGE_H/2
     document['overlay'].style.display = 'none'
     document['player-name'].value = ''
+    current_bullet_count = base_bullet_count
+    # 초기 bullet 생성
+    for _ in range(base_bullet_count):
+        spawn_bullet()
 
 window.start_game = start_game
 document['start'].bind('click',start_game)
