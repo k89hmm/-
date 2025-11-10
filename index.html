@@ -39,7 +39,7 @@ canvas {
     touch-action: none;
 }
 
-/* ✅ 오버레이 스타일 */
+/* 오버레이 스타일 */
 #overlay {
     position: absolute;
     top: 0; left: 50%;
@@ -66,11 +66,6 @@ canvas {
     width: 200px;
     margin-bottom: 8px;
 }
-#overlay .buttons-container {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 10px;
-}
 #overlay button {
     background:#2b6df6;
     color:white;
@@ -79,6 +74,7 @@ canvas {
     border-radius:6px;
     cursor:pointer;
     font-size:16px;
+    margin-bottom: 10px;
 }
 #overlay #top-scores {
     font-size: 18px;
@@ -87,7 +83,7 @@ canvas {
 }
 </style>
 
-<!-- ✅ Firebase Realtime Database CDN -->
+<!-- Firebase Realtime Database CDN -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import { getDatabase, ref, push, get, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
@@ -106,7 +102,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// ✅ 점수 업로드
+// 점수 업로드
 window.uploadScore = async function(name, score){
     try{
         const scoresRef = ref(db, 'ranking');
@@ -118,7 +114,7 @@ window.uploadScore = async function(name, score){
     }
 };
 
-// ✅ 상위 5명 표시
+// 상위 5명 표시
 window.showTopScores = async function(){
     try {
         const scoresRef = query(ref(db, 'ranking'), orderByChild('score'), limitToLast(5));
@@ -129,8 +125,7 @@ window.showTopScores = async function(){
 
         let html = "<h3>🏆 상위 5위</h3>";
         list.forEach((item,i)=>{ html += `${i+1}. ${item.name} - ${item.score}<br>`; });
-        const div = document.getElementById("top-scores");
-        div.innerHTML = html;
+        document.getElementById("top-scores").innerHTML = html;
     } catch(err) {
         console.error("Show top scores error:", err);
     }
@@ -149,15 +144,13 @@ window.showTopScores = async function(){
 </div>
 <canvas id="game" width="480" height="640"></canvas>
 
-<!-- ✅ 오버레이: 게임 오버 + 이름 입력 + 상위 5위 + 재시작 버튼 -->
+<!-- 오버레이: 게임 오버 + 이름 입력 + 상위 5위 -->
 <div id="overlay">
   <h2>게임 오버</h2>
   <p id="final-score">최종 점수: 0</p>
   <input type="text" id="player-name" placeholder="이름 입력">
-  <div class="buttons-container">
-      <button id="submit-name">점수 제출</button>
-      <button id="restart-game">재시작</button>
-  </div>
+  <button id="submit-name">점수 제출</button>
+  <button id="restart-game">재시작</button>
   <div id="top-scores"></div>
 </div>
 
@@ -194,21 +187,16 @@ def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
     size = random.uniform(6,14)
     speed = random.uniform(2.0,4.2)+(score/200.0)
-    if side=='top':
-        x=random.uniform(0,STAGE_W); y=-size; vx=random.uniform(-1,1); vy=speed
-    elif side=='bottom':
-        x=random.uniform(0,STAGE_W); y=STAGE_H+size; vx=random.uniform(-1,1); vy=-speed
-    elif side=='left':
-        x=-size; y=random.uniform(0,STAGE_H); vx=speed; vy=random.uniform(-1,1)
-    else:
-        x=STAGE_W+size; y=random.uniform(0,STAGE_H); vx=-speed; vy=random.uniform(-1,1)
+    if side=='top': x=random.uniform(0,STAGE_W); y=-size; vx=random.uniform(-1,1); vy=speed
+    elif side=='bottom': x=random.uniform(0,STAGE_W); y=STAGE_H+size; vx=random.uniform(-1,1); vy=-speed
+    elif side=='left': x=-size; y=random.uniform(0,STAGE_H); vx=speed; vy=random.uniform(-1,1)
+    else: x=STAGE_W+size; y=random.uniform(0,STAGE_H); vx=-speed; vy=random.uniform(-1,1)
     bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
 
 def update(dt):
     global last_spawn, score, running, difficulty_timer
     if not running: return
-    last_spawn += dt
-    difficulty_timer += dt
+    last_spawn += dt; difficulty_timer += dt
     if last_spawn>=spawn_interval: last_spawn=0; spawn_bullet()
     if difficulty_timer>=5000:
         difficulty_timer=0
@@ -221,8 +209,7 @@ def update(dt):
     player['y']=max(player['h']/2,min(STAGE_H-player['h']/2,player['y']))
     for b in list(bullets):
         b['x']+=b['vx']; b['y']+=b['vy']
-        if b['x']<-50 or b['x']>STAGE_W+50 or b['y']<-50 or b['y']>STAGE_H+50:
-            bullets.remove(b); score+=1
+        if b['x']<-50 or b['x']>STAGE_W+50 or b['y']<-50 or b['y']>STAGE_H+50: bullets.remove(b); score+=1
     for b in bullets:
         rx=player['x']-player['w']/2; ry=player['y']-player['h']/2
         closest_x=max(rx,min(b['x'],rx+player['w']))
@@ -233,10 +220,17 @@ def update(dt):
 def draw():
     ctx.clearRect(0,0,STAGE_W,STAGE_H)
     if bg_loaded: ctx.drawImage(bg_img,0,0,STAGE_W,STAGE_H)
+    
+    # 플레이어 그리기
     if player_loaded:
         ratio=player_img.naturalWidth/player_img.naturalHeight
         draw_w=player['w']/2; draw_h=draw_w/ratio
         ctx.drawImage(player_img,player['x']-draw_w/2,player['y']-draw_h/2,draw_w,draw_h)
+    # 플레이어 히트 박스
+    ctx.strokeStyle='red'; ctx.lineWidth=2
+    ctx.strokeRect(player['x']-player['w']/2, player['y']-player['h']/2, player['w'], player['h'])
+
+    # 총알 그리기
     for b in bullets:
         if bullet_loaded:
             ratio=bullet_img.naturalWidth/bullet_img.naturalHeight
@@ -245,6 +239,10 @@ def draw():
         else:
             ctx.beginPath(); ctx.arc(b['x'],b['y'],b['r']*3,0,2*math.pi)
             ctx.fillStyle='#ff6b6b'; ctx.fill()
+        # 총알 히트 박스
+        ctx.strokeStyle='red'; ctx.lineWidth=2
+        ctx.strokeRect(b['x']-b['r'], b['y']-b['r'], b['r']*2, b['r']*2)
+
     document['score'].text=f"점수: {score}"
 
 def show_game_over():
@@ -261,17 +259,12 @@ def submit_name(ev):
     name = document['player-name'].value.strip()
     if name:
         window.uploadScore(name, score)
-        document['overlay'].style.display = 'none'
 
 document['submit-name'].bind('click', submit_name)
 
-def restart_game(ev=None):
-    global running, bullets, score, last_spawn, difficulty_timer, player, game_started
-    bullets=[]; score=0; last_spawn=0; difficulty_timer=0
-    running=True; game_started=True
-    player['x']=STAGE_W/2; player['y']=STAGE_H/2
+def restart_game(ev):
     document['overlay'].style.display = 'none'
-    document['player-name'].value = ''
+    start_game()
 
 document['restart-game'].bind('click', restart_game)
 
@@ -297,8 +290,7 @@ document.bind('keydown',on_keydown); document.bind('keyup',on_keyup)
 
 def on_touch(ev):
     if not running: return
-    touch = ev.touches[0]
-    rect = CANVAS.getBoundingClientRect()
+    touch = ev.touches[0]; rect = CANVAS.getBoundingClientRect()
     player['x'] = (touch.clientX - rect.left) * (STAGE_W / rect.width)
     player['y'] = (touch.clientY - rect.top) * (STAGE_H / rect.height)
     ev.preventDefault()
