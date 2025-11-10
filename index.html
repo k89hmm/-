@@ -1,63 +1,43 @@
-<!doctype html>
-<html lang="ko">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>좌형의 안민철 피하기</title>
-  <style>
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      margin: 20px;
-      background: #111;
-      color: #eee;
-      overflow: hidden;
+<meta charset="utf-8">
+<title>좌형의 안민철 피하기</title>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brython@3.11.0/brython.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<style>
+    body { margin: 0; text-align: center; background: #000; overflow: hidden; }
+    #gameCanvas { display: block; margin: 20px auto; background: #000; }
+    #ui { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: white; text-align: center; }
+    #score { font-size: 20px; margin-top: 5px; }
+    #gameOverOverlay {
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.5); color: white; font-size: 24px;
+        text-align: center; justify-content: center; align-items: center; flex-direction: column;
     }
-    canvas {
-      border-radius: 8px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.6);
-      display: block;
-    }
-    #controls {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-    button {
-      padding: 8px 14px;
-      border: none;
-      border-radius: 6px;
-      background: #2b6df6;
-      color: white;
-      cursor: pointer;
-      font-weight: bold;
-    }
-  </style>
-
-  <!-- ✅ Brython 최신버전 (timer 모듈 포함) -->
-  <script src="https://cdn.jsdelivr.net/npm/brython@3.11.0/brython.min.js"></script>
-
-  <!-- ✅ Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+</style>
 </head>
-
 <body onload="brython()">
-  <h1>좌형의 안민철 피하기</h1>
-  <div id="controls">
-    <button id="start">게임 시작</button>
+<div id="ui">
+    <h1>좌형의 안민철 피하기</h1>
+    <button id="startButton">게임 시작</button>
     <div id="score">점수: 0</div>
-  </div>
-  <canvas id="game" width="480" height="640"></canvas>
+</div>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
 
-  <script type="text/python">
-from browser import document, html, timer, window
-import math, random, json
+<!-- 게임 오버 화면 -->
+<div id="gameOverOverlay">
+    <div id="gameOverText">게임 오버</div>
+    <div id="finalScore"></div>
+    <div id="ranking"></div>
+</div>
 
-# ✅ Firebase 초기화
+<script type="text/python">
+from browser import document, html, window, aio
+import random, math, json
+
+# ===== Firebase 연결 =====
 firebaseConfig = {
     'apiKey': "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
     'authDomain': "aaaa-85ddd.firebaseapp.com",
@@ -68,163 +48,147 @@ firebaseConfig = {
     'appId': "1:947357162592:web:599896666a79b4b219f705",
     'measurementId': "G-KVHXK6GR39"
 }
-
 window.firebase.initializeApp(firebaseConfig)
 db = window.firebase.database()
 
-# ✅ 캔버스 설정
-canvas = document["game"]
+# ===== 기본 설정 =====
+canvas = document["gameCanvas"]
 ctx = canvas.getContext("2d")
-W, H = canvas.width, canvas.height
 
-# ✅ 이미지 로드
-bg = window.Image.new()
-bg.src = "background.png"
+width, height = canvas.width, canvas.height
 
 player_img = window.Image.new()
 player_img.src = "player.png"
-
 bullet_img = window.Image.new()
 bullet_img.src = "bullet.png"
+bg_img = window.Image.new()
+bg_img.src = "background.png"
 
-# ✅ 전역 변수
-player = {"x": W/2, "y": H/2, "size": 30, "speed": 5}
+player = {"x": width/2, "y": height/2, "size": 40}
 bullets = []
-running = False
 score = 0
-ranking = []
-keys = {"left": False, "right": False, "up": False, "down": False}
+running = False
+keys = set()
+ranking_data = []
 
-# ✅ Firebase 랭킹 불러오기
-def load_ranking():
-    global ranking
-    def callback(snapshot):
-        data = snapshot.val()
-        if data:
-            ranking = sorted([int(data[key]["score"]) for key in window.Object.keys(data)], reverse=True)
-        else:
-            ranking = []
-    db.ref("ranking").get().then(callback)
-
-load_ranking()
-
-# ✅ Firebase 랭킹 저장
-def save_score(new_score):
-    new_entry = {"score": new_score}
-    db.ref("ranking").push(new_entry)
-
-# ✅ 총알 생성 (무조건 화면 밖에서 들어오게)
+# ===== 총알 스폰 =====
 def spawn_bullet():
-    side = random.choice(["top","bottom","left","right"])
-    size = random.uniform(15, 25)
-    speed = random.uniform(2.5, 4.5)
-    if side == "top":
-        x, y, vx, vy = random.uniform(0, W), -size, random.uniform(-1, 1), speed
-    elif side == "bottom":
-        x, y, vx, vy = random.uniform(0, W), H+size, random.uniform(-1, 1), -speed
-    elif side == "left":
-        x, y, vx, vy = -size, random.uniform(0, H), speed, random.uniform(-1, 1)
+    side = random.choice(["left", "right", "top", "bottom"])
+    speed = random.uniform(2, 5)
+    if side == "left":
+        x, y, dx, dy = -10, random.randint(0, height), speed, 0
+    elif side == "right":
+        x, y, dx, dy = width+10, random.randint(0, height), -speed, 0
+    elif side == "top":
+        x, y, dx, dy = random.randint(0, width), -10, 0, speed
     else:
-        x, y, vx, vy = W+size, random.uniform(0, H), -speed, random.uniform(-1, 1)
-    bullets.append({"x": x, "y": y, "vx": vx, "vy": vy, "r": size})
+        x, y, dx, dy = random.randint(0, width), height+10, 0, -speed
+    bullets.append({"x": x, "y": y, "dx": dx, "dy": dy})
 
-# ✅ 이동 업데이트
+# ===== 게임 루프 =====
 def update():
-    global running, score
-
-    if not running:
-        return
+    global score, running
 
     # 플레이어 이동
-    if keys["left"]: player["x"] -= player["speed"]
-    if keys["right"]: player["x"] += player["speed"]
-    if keys["up"]: player["y"] -= player["speed"]
-    if keys["down"]: player["y"] += player["speed"]
+    speed = 5
+    if "ArrowLeft" in keys: player["x"] -= speed
+    if "ArrowRight" in keys: player["x"] += speed
+    if "ArrowUp" in keys: player["y"] -= speed
+    if "ArrowDown" in keys: player["y"] += speed
 
-    player["x"] = max(player["size"], min(W - player["size"], player["x"]))
-    player["y"] = max(player["size"], min(H - player["size"], player["y"]))
+    # 화면 경계
+    player["x"] = max(player["size"]/2, min(width-player["size"]/2, player["x"]))
+    player["y"] = max(player["size"]/2, min(height-player["size"]/2, player["y"]))
 
     # 총알 이동
-    for b in list(bullets):
-        b["x"] += b["vx"]
-        b["y"] += b["vy"]
-        if (b["x"]<-50 or b["x"]>W+50 or b["y"]<-50 or b["y"]>H+50):
-            bullets.remove(b)
-            score += 1
-
-    # 충돌 판정 (약하게)
     for b in bullets:
-        dx = player["x"] - b["x"]
-        dy = player["y"] - b["y"]
-        dist = math.sqrt(dx*dx + dy*dy)
-        if dist < (player["size"]*0.4 + b["r"]*0.4):
+        b["x"] += b["dx"]
+        b["y"] += b["dy"]
+
+    # 충돌 판정
+    for b in bullets:
+        dist = math.hypot(b["x"]-player["x"], b["y"]-player["y"])
+        if dist < player["size"]*0.4:
             game_over()
             return
 
-# ✅ 그리기
-def draw():
-    ctx.clearRect(0,0,W,H)
-    ctx.drawImage(bg,0,0,W,H)
-    for b in bullets:
-        ctx.drawImage(bullet_img, b["x"]-b["r"], b["y"]-b["r"], b["r"]*2, b["r"]*2)
-    ctx.drawImage(player_img, player["x"]-player["size"], player["y"]-player["size"], player["size"]*2, player["size"]*2)
+    score += 1
     document["score"].text = f"점수: {score}"
 
-# ✅ 게임 루프
+def draw():
+    ctx.clearRect(0,0,width,height)
+    ctx.drawImage(bg_img,0,0,width,height)
+    ctx.drawImage(player_img, player["x"]-player["size"]/2, player["y"]-player["size"]/2, player["size"], player["size"])
+    for b in bullets:
+        ctx.drawImage(bullet_img, b["x"]-15, b["y"]-15, 30, 30)
+
 def game_loop():
     if running:
-        if random.random() < 0.02:
+        if random.random() < 0.03:
             spawn_bullet()
         update()
         draw()
-    timer.set_timeout(game_loop, 30)
 
-# ✅ 입력 처리
-def key_down(ev):
-    if ev.key in ("ArrowLeft","a"): keys["left"] = True
-    if ev.key in ("ArrowRight","d"): keys["right"] = True
-    if ev.key in ("ArrowUp","w"): keys["up"] = True
-    if ev.key in ("ArrowDown","s"): keys["down"] = True
+# ===== 키보드 입력 =====
+def keydown(e): keys.add(e.key)
+def keyup(e): keys.discard(e.key)
+document.bind("keydown", keydown)
+document.bind("keyup", keyup)
 
-def key_up(ev):
-    if ev.key in ("ArrowLeft","a"): keys["left"] = False
-    if ev.key in ("ArrowRight","d"): keys["right"] = False
-    if ev.key in ("ArrowUp","w"): keys["up"] = False
-    if ev.key in ("ArrowDown","s"): keys["down"] = False
+# ===== 모바일 터치 이동 =====
+def on_touch(e):
+    t = e.touches[0]
+    rect = canvas.getBoundingClientRect()
+    player["x"] = t.clientX - rect.left
+    player["y"] = t.clientY - rect.top
+    e.preventDefault()
+canvas.bind("touchmove", on_touch)
 
-# ✅ 게임 오버
+# ===== 게임 시작 =====
+def start_game(e):
+    global score, running, bullets
+    score = 0
+    bullets = []
+    player["x"], player["y"] = width/2, height/2
+    running = True
+    document["gameOverOverlay"].style.display = "none"
+document["startButton"].bind("click", start_game)
+
+# ===== 게임 오버 =====
 def game_over():
     global running
     running = False
+    document["gameOverOverlay"].style.display = "flex"
+    document["finalScore"].text = f"당신의 점수: {score}"
+
     save_score(score)
-    load_ranking()
-    ctx.fillStyle = "rgba(0,0,0,0.5)"
-    ctx.fillRect(0,0,W,H)
-    ctx.fillStyle = "#fff"
-    ctx.font = "40px sans-serif"
-    ctx.textAlign = "center"
-    ctx.fillText("게임 오버", W/2, H/2 - 40)
-    ctx.font = "24px sans-serif"
-    ctx.fillText(f"점수: {score}", W/2, H/2)
-    ctx.font = "18px sans-serif"
-    ctx.fillText("Top 5 랭킹", W/2, H/2 + 40)
-    y = H/2 + 70
-    for i, s in enumerate(ranking[:5]):
-        ctx.fillText(f"{i+1}위: {s}점", W/2, y)
-        y += 24
+    show_ranking()
 
-# ✅ 게임 시작
-def start(ev):
-    global running, bullets, score
-    bullets = []
-    score = 0
-    player["x"], player["y"] = W/2, H/2
-    running = True
+# ===== 점수 저장 및 불러오기 =====
+def save_score(s):
+    new_entry = {"name": "플레이어", "score": s}
+    db.ref("ranking").push(new_entry)
 
-document["start"].bind("click", start)
-document.bind("keydown", key_down)
-document.bind("keyup", key_up)
-game_loop()
-  </script>
+def show_ranking():
+    def callback(snapshot):
+        data = snapshot.val()
+        if not data:
+            document["ranking"].text = "랭킹 데이터 없음"
+            return
+        records = [{"name": v["name"], "score": int(v["score"])} for v in data.values()]
+        top5 = sorted(records, key=lambda x: x["score"], reverse=True)[:5]
+
+        html_str = "<h3>🏆 상위 5명</h3>"
+        for i, r in enumerate(top5, 1):
+            html_str += f"{i}등: {r['name']} ({r['score']}점)<br>"
+        if score < top5[-1]["score"]:
+            html_str += "<br>5등 안에 못 들었습니다 😢"
+        document["ranking"].html = html_str
+
+    db.ref("ranking").once("value").then(callback)
+
+# ===== 루프 시작 =====
+window.setInterval(game_loop, 30)
+</script>
 </body>
 </html>
