@@ -53,7 +53,7 @@ canvas {
 
 <script type="text/python3">
 from browser import document, html, timer, window
-import math, random, json
+import math, random
 
 CANVAS = document['game']
 ctx = CANVAS.getContext('2d')
@@ -81,7 +81,7 @@ bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
-# 총알 생성 (사방)
+# 총알 생성
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
     size = random.uniform(6,14)
@@ -137,7 +137,6 @@ def update(dt):
         dx=(b['x']-closest_x)*0.2
         dy=(b['y']-closest_y)*0.5
         if dx*dx+dy*dy<=b['r']*b['r']:
-            global running
             running=False
             break
 
@@ -164,25 +163,18 @@ def draw():
             ctx.fill()
     document['score'].text=f"점수: {score}"
 
+# 게임 오버 메시지 (항상 중앙)
 def show_game_over():
-    ctx.clearRect(0,0,STAGE_W,STAGE_H)
-    ctx.fillStyle='rgba(0,0,0,0.7)'
-    ctx.fillRect(0,0,STAGE_W,STAGE_H)
-    ctx.fillStyle='#fff'
-    ctx.textAlign='center'
-    ctx.textBaseline='middle'
-    center_y = STAGE_H/2
-    ctx.font='48px sans-serif'
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'
+    ctx.fillRect(0, 0, STAGE_W, STAGE_H)
+    ctx.fillStyle = '#fff'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    center_y = STAGE_H / 2
+    ctx.font = '48px sans-serif'
     ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
-    ctx.font='24px sans-serif'
+    ctx.font = '24px sans-serif'
     ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
-
-def game_loop():
-    if running:
-        update(16)
-        draw()
-    else:
-        show_game_over()
 
 # 키보드
 def on_keydown(ev):
@@ -227,7 +219,14 @@ def start_game(ev=None):
 
 document['start'].bind('click',start_game)
 
-# 루프
+# 게임 루프
+def game_loop():
+    if running:
+        update(16)
+        draw()
+    else:
+        show_game_over()
+
 def all_images_loaded():
     return player_img.complete and bullet_img.complete and bg_img.complete
 
