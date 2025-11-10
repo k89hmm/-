@@ -39,49 +39,14 @@ canvas {
     touch-action: none;
 }
 #top-scores {
-    margin-top:12px;
-    color:#fff;
-    font-family:monospace;
+    margin-top: 10px;
+    text-align: center;
 }
 </style>
-<!-- Firebase CDN 9.22.1 -->
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js"></script>
-<script>
-  const firebaseConfig = {
-    'apiKey': "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
-    'authDomain': "aaaa-85ddd.firebaseapp.com",
-    'databaseURL': "https://aaaa-85ddd-default-rtdb.firebaseio.com",
-    'projectId': "aaaa-85ddd",
-    'storageBucket': "aaaa-85ddd.firebasestorage.app",
-    'messagingSenderId': "947357162592",
-    'appId': "1:947357162592:web:599896666a79b4b219f705",
-    'measurementId': "G-KVHXK6GR39"
-  };
-  const app = firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
 
-  // Brython에서 호출: 상위 5점 가져와 표시
-  async function showTopScores() {
-    try {
-      const topScoresDiv = document.getElementById('top-scores');
-      const snapshot = await db.collection('scores')
-        .orderBy('score', 'desc')
-        .limit(5)
-        .get();
-
-      let html = '<strong>Top 5 Players</strong><br>';
-      snapshot.forEach((doc, idx) => {
-        const data = doc.data();
-        html += `${idx+1}. ${data.name} - ${data.score}<br>`;
-      });
-      topScoresDiv.innerHTML = html;
-    } catch (err) {
-      console.error('Top Scores 로딩 실패:', err);
-    }
-  }
-  window.showTopScores = showTopScores;
-</script>
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
@@ -94,8 +59,46 @@ canvas {
   <div id="score">점수: 0</div>
 </div>
 <canvas id="game" width="480" height="640"></canvas>
-
 <div id="top-scores"></div>
+
+<script>
+  // Firebase 초기화
+  const firebaseConfig = {
+    'apiKey': "AIzaSyA4uk5Iv6UPOX_P2d-tKkZd1p9E8m2rV44",
+    'authDomain': "aaaa-85ddd.firebaseapp.com",
+    'databaseURL': "https://aaaa-85ddd-default-rtdb.firebaseio.com",
+    'projectId': "aaaa-85ddd",
+    'storageBucket': "aaaa-85ddd.firebasestorage.app",
+    'messagingSenderId': "947357162592",
+    'appId': "1:947357162592:web:599896666a79b4b219f705",
+    'measurementId': "G-KVHXK6GR39"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // 점수 업로드
+  function uploadScore(name, score){
+      db.collection("scores").add({name: name, score: score})
+        .then(() => showTopScores())
+        .catch(e => console.error(e));
+  }
+
+  // 상위 5명 표시
+  function showTopScores(){
+      db.collection("scores")
+        .orderBy("score", "desc")
+        .limit(5)
+        .get()
+        .then(querySnapshot => {
+            let html = "<h3>Top 5 점수</h3>";
+            querySnapshot.forEach((doc, i) => {
+                let data = doc.data();
+                html += `${i+1}. ${data.name}: ${data.score}<br>`;
+            });
+            document.getElementById("top-scores").innerHTML = html;
+        });
+  }
+</script>
 
 <script type="text/python3">
 from browser import document, html, timer, window
@@ -120,8 +123,10 @@ bg_loaded = False
 
 player_img = html.IMG(); player_img.src='player.png'
 player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
+
 bullet_img = html.IMG(); bullet_img.src='bullet.png'
 bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
+
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
@@ -177,6 +182,7 @@ def update(dt):
         dy=(b['y']-closest_y)*0.5
         if dx*dx+dy*dy<=b['r']*b['r']:
             running=False
+            ask_name_and_upload()
             break
 
 def draw():
@@ -204,17 +210,22 @@ def draw():
 def show_game_over():
     ctx.fillStyle = 'rgba(0,0,0,0.7)'
     ctx.fillRect(0,0,STAGE_W,STAGE_H)
+
     ctx.fillStyle = '#fff'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     center_y = STAGE_H / 2
+
     ctx.font = '48px sans-serif'
     ctx.fillText('게임 오버', STAGE_W/2, center_y - 20)
+
     ctx.font = '24px sans-serif'
     ctx.fillText(f'최종 점수: {score}', STAGE_W/2, center_y + 30)
-    
-    # 🔹 게임 오버 시 상위 5점 표시
-    window.showTopScores()
+
+def ask_name_and_upload():
+    name = window.prompt("플레이어 이름을 입력하세요")
+    if name:
+        window.uploadScore(name, score)
 
 def game_loop():
     update(16)
