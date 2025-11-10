@@ -109,7 +109,9 @@ def update(dt):
     difficulty_timer += dt
     if last_spawn>=spawn_interval: last_spawn=0; spawn_bullet()
     if difficulty_timer>=5000: difficulty_timer=0; 
-        for b in bullets: b['vx']*=1.5; b['vy']*=1.5
+        for b in bullets:
+            b['vx']*=1.5
+            b['vy']*=1.5
 
     if keys['left']: player['x']-=player['speed']
     if keys['right']: player['x']+=player['speed']
