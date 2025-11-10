@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>좌형의 안민철 피하기</title>
+  <style>
+    body {font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial; display:flex;flex-direction:column;align-items:center;gap:12px;margin:0;background:#111;color:#eee;overflow:hidden;}
+    canvas {border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,0.6)}
+    #controls {display:flex;gap:8px;align-items:center;margin:8px}
+    button {padding:8px 12px;border-radius:6px;border:none;background:#2b6df6;color:white;cursor:pointer}
+    #score {font-weight:700}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
+</head>
+<body onload="brython()">
+  <h1>좌형의 안민철 피하기</h1>
+  <div id="controls">
+    <button id="start">시작</button>
+    <button id="pause">일시정지</button>
+    <div id="score">점수: 0</div>
+  </div>
+  <canvas id="game"></canvas>
+
+  <script type="text/python3">
+from browser import document, html, timer, window
+import math, random
+
+CANVAS = document['game']
+ctx = CANVAS.getContext('2d')
+
+# 기본 캔버스 크기
+base_W, base_H = 480, 640
+W, H = base_W, base_H
+scale_factor = 1.0
+
+# 플레이어 정보
+player = {'x': W/2, 'y': H/2, 'w': 50, 'h': 50, 'speed': 6}
+bullets = []
+spawn_interval = 700
+last_spawn = 0
+running = False
+paused = False
+score = 0
+keys = {'left': False, 'right': False, 'up': False, 'down': False}
+difficulty_timer = 0
+player_loaded = False
+
+# 모바일 터치용
+touch_active = False
+touch_x = 0
+touch_y = 0
+
+# 이미지 객체
+player_img = html.IMG()
+player_img.src = 'player.png'   # 플레이어 이미지
+bullet_img = html.IMG()
+bullet_img.src = 'bullet.png'   # 총알 이미지
+bg_img = html.IMG()
+bg_img.src = 'background.png'   # 배경 이미지
+
+player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
+
+# 화면 크기 자동 조정
+def resize_canvas(ev=None):
+    global W,H,scale_factor
+    W = min(base_W, window.innerWidth - 20)
+    H = min(base_H, window.innerHeight - 80)
+    CANVAS.width = W
+    CANVAS.height = H
+    scale_factor = min(W/base_W, H/base_H)
+    # 플레이어 중앙 위치
+    player['x'] = W/2
+    player['y'] = H/2
+
+resize_canvas()
+window.bind('resize', resize_canvas)
+
+# 총알 생성
+def spawn_bullet():
+    side = random.choice(['top','bottom','left','right'])
+    size = random.uniform(6,14)
+    speed = random.uniform(2.0,4.2) + (score/200.0)
+    if side=='top':
+        x = random.uniform(0,W)
+        y = -size
+        vx = random.uniform(-1,1)
+        vy = speed
+    elif side=='bottom':
+        x = random.uniform(0,W)
+        y = H+size
+        vx = random.uniform(-1,1)
+        vy = -speed
+    elif side=='left':
+        x = -size
+        y = random.uniform(0,H)
+        vx = speed
+        vy = random.uniform(-1,1)
+    else:
+        x = W+size
+        y = random.uniform(0,H)
+        vx = -speed
+        vy = random.uniform(-1,1)
+    bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
+
+# 게임 업데이트
+def update(dt):
+    global last_spawn, score, running, difficulty_timer
+    if not running or paused:
+        return
+    last_spawn += dt
+    difficulty_timer += dt
+    if last_spawn >= spawn_interval:
+        last_spawn = 0
+        spawn_bullet()
+
+    if difficulty_timer >= 5000:
+        difficulty_timer = 0
+        for b in bullets:
+            b['vx'] *= 1.5
+            b['vy'] *= 1.5
+
+    # 방향키 이동
+    if keys['left']: player['x'] -= player['speed']
+    if keys['right']: player['x'] += player['speed']
+    if keys['up']: player['y'] -= player['speed']
+    if keys['down']: player['y'] += player['speed']
+
+    # 터치 이동
+    if touch_active:
+        player['x'] += (touch_x - player['x']) * 0.2
+        player['y'] += (touch_y - player['y']) * 0.2
+
+    # 플레이어 화면 경계 제한
+    player['x'] = max(player['w']/2, min(W - player['w']/2, player['x']))
+    player['y'] = max(player['h']/2, min(H - player['h']/2, player['y']))
+
+    # 총알 이동 및 점수
+    for b in list(bullets):
+        b['x'] += b['vx']
+        b['y'] += b['vy']
+        if b['x']<-50 or b['x']>W+50 or b['y']<-50 or b['y']>H+50:
+            bullets.remove(b)
+            score += 1
+
+    # 히트박스 판정
+    for b in bullets:
+        rx = player['x'] - player['w']/2
+        ry = player['y'] - player['h']/2
+        closest_x = max(rx, min(b['x'], rx + player['w']))
+        closest_y = max(ry, min(b['y'], ry + player['h']))
+        dx = b['x'] - closest_x
+        dy = b['y'] - closest_y
+        dx *= 0.2  # 좌우 20%
+        dy *= 0.5  # 위아래 50%
+        if dx*dx + dy*dy <= b['r']*b['r']:
+            running = False
+            show_game_over()
+            break
+
+# 게임 그리기
+def draw():
+    ctx.clearRect(0,0,W,H)
+    # 배경
+    if bg_img.complete:
+        ctx.globalAlpha = 0.6
+        ctx.filter = 'grayscale(100%)'
+        ctx.drawImage(bg_img,0,0,W,H)
+        ctx.globalAlpha = 1
+        ctx.filter = 'none'
+    else:
+        ctx.fillStyle='#111'
+        ctx.fillRect(0,0,W,H)
+
+    # 그리드
+    for i in range(0,W,40):
+        ctx.beginPath()
+        ctx.moveTo(i,0)
+        ctx.lineTo(i,H)
+        ctx.strokeStyle='rgba(255,255,255,0.02)'
+        ctx.stroke()
+    for j in range(0,H,40):
+        ctx.beginPath()
+        ctx.moveTo(0,j)
+        ctx.lineTo(W,j)
+        ctx.strokeStyle='rgba(255,255,255,0.02)'
+        ctx.stroke()
+
+    # 플레이어
+    if player_loaded:
+        ratio = player_img.naturalWidth / player_img.naturalHeight
+        draw_w = player['w']*2*scale_factor
+        draw_h = draw_w / ratio
+        ctx.drawImage(player_img, player['x']-draw_w/2, player['y']-draw_h/2, draw_w, draw_h)
+    else:
+        ctx.fillStyle='#66ff99'
+        ctx.fillRect(player['x']-player['w']/2, player['y']-player['h']/2, player['w'], player['h'])
+
+    # 총알
+    for b in bullets:
+        if bullet_img.complete:
+            ratio = bullet_img.naturalWidth / bullet_img.naturalHeight
+            draw_w = b['r']*6*scale_factor
+            draw_h = draw_w / ratio
+            ctx.drawImage(bullet_img, b['x']-draw_w/2, b['y']-draw_h/2, draw_w, draw_h)
+        else:
+            ctx.beginPath()
+            ctx.arc(b['x'],b['y'],b['r']*3*scale_factor,0,2*math.pi)
+            ctx.fillStyle='#ff6b6b'
+            ctx.fill()
+
+    document['score'].text=f"점수: {score}"
+
+# 게임 루프
+def game_loop():
+    update(16)
+    draw()
+
+# 키 이벤트
+def on_keydown(ev):
+    if ev.key in ('ArrowLeft','a'): keys['left']=True
+    if ev.key in ('ArrowRight','d'): keys['right']=True
+    if ev.key in ('ArrowUp','w'): keys['up']=True
+    if ev.key in ('ArrowDown','s'): keys['down']=True
+    if ev.key in ('ArrowLeft','ArrowRight','ArrowUp','ArrowDown'): ev.preventDefault()
+
+def on_keyup(ev):
+    if ev.key in ('ArrowLeft','a'): keys['left']=False
+    if ev.key in ('ArrowRight','d'): keys['right']=False
+    if ev.key in ('ArrowUp','w'): keys['up']=False
+    if ev.key in ('ArrowDown','s'): keys['down']=False
+    if ev.key in ('ArrowLeft','ArrowRight','ArrowUp','ArrowDown'): ev.preventDefault()
+
+# 터치 이벤트
+def on_touch_start(ev):
+    global touch_active, touch_x, touch_y
+    touch_active = True
+    touch_x = ev.touches[0].clientX - CANVAS.offsetLeft
+    touch_y = ev.touches[0].clientY - CANVAS.offsetTop
+    ev.preventDefault()
+def on_touch_move(ev):
+    global touch_x, touch_y
+    if touch_active:
+        touch_x = ev.touches[0].clientX - CANVAS.offsetLeft
+        touch_y = ev.touches[0].clientY - CANVAS.offsetTop
+    ev.preventDefault()
+def on_touch_end(ev):
+    global touch_active
+    touch_active = False
+    ev.preventDefault()
+
+# 게임 시작/일시정지/게임오버
+def start_game(ev=None):
+    global running, paused, bullets, score, last_spawn, difficulty_timer, player
+    bullets=[]
+    score=0
+    last_spawn=0
+    difficulty_timer=0
+    running=True
+    paused=False
+    player['x']=W/2
+    player['y']=H/2
+
+def toggle_pause(ev=None):
+    global paused
+    if running: paused = not paused
+
+def show_game_over():
+    ctx.fillStyle='rgba(0,0,0,0.7)'
+    ctx.fillRect(0,0,W,H)
+    ctx.fillStyle='#fff'
+    ctx.font='48px sans-serif'
+    ctx.textAlign='center'
+    ctx.fillText('게임 오버', W/2,H/2-30)
+    ctx.font='24px sans-serif'
+    ctx.fillText(f'최종 점수: {score}', W/2,H/2+10)
+
+# 이벤트 바인딩
+document.bind('keydown',on_keydown)
+document.bind('keyup',on_keyup)
+document['start'].bind('click',start_game)
+document['pause'].bind('click',toggle_pause)
+document['game'].bind('touchstart',on_touch_start)
+document['game'].bind('touchmove',on_touch_move)
+document['game'].bind('touchend',on_touch_end)
+
+def loop(timestamp):
+    game_loop()
+    timer.request_animation_frame(loop)
+
+timer.request_animation_frame(loop)
+  </script>
+</body>
+</html>
