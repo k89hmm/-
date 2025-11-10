@@ -35,7 +35,7 @@ canvas {
     background:#000;
     border-radius:8px;
     box-shadow:0 6px 24px rgba(0,0,0,0.6);
-    touch-action: manipulation; /* 모바일 스크롤/줌 기본 허용 */
+    touch-action: manipulation;
     display:block;
 }
 </style>
@@ -45,12 +45,10 @@ canvas {
 <body onload="brython()">
 
 <h1>좌형의 안민철 피하기</h1>
-
 <div id="controls">
   <button id="start">시작</button>
   <div id="score">점수: 0</div>
 </div>
-
 <canvas id="game" width="480" height="640"></canvas>
 
 <script type="text/python3">
@@ -61,6 +59,7 @@ CANVAS = document['game']
 ctx = CANVAS.getContext('2d')
 STAGE_W, STAGE_H = 480, 640
 
+# 플레이어, 총알, 게임 상태
 player = {'x': STAGE_W/2, 'y': STAGE_H/2, 'w':50, 'h':50, 'speed':6}
 bullets = []
 spawn_interval = 700
@@ -70,10 +69,10 @@ score = 0
 keys = {'left':False,'right':False,'up':False,'down':False}
 difficulty_timer = 0
 player_loaded = False
-bg_loaded = False
 bullet_loaded = False
+bg_loaded = False
 
-# 이미지 로드
+# 이미지 로딩
 player_img = html.IMG(); player_img.src='player.png'
 player_img.bind('load', lambda ev: globals().update({'player_loaded': True}))
 
@@ -83,6 +82,7 @@ bullet_img.bind('load', lambda ev: globals().update({'bullet_loaded': True}))
 bg_img = html.IMG(); bg_img.src='background.png'
 bg_img.bind('load', lambda ev: globals().update({'bg_loaded': True}))
 
+# 총알 생성 (사방에서)
 def spawn_bullet():
     side = random.choice(['top','bottom','left','right'])
     size = random.uniform(6,14)
@@ -97,6 +97,7 @@ def spawn_bullet():
         x=STAGE_W+size; y=random.uniform(0,STAGE_H); vx=-speed; vy=random.uniform(-1,1)
     bullets.append({'x':x,'y':y,'vx':vx,'vy':vy,'r':size})
 
+# 게임 업데이트
 def update(dt):
     global last_spawn, score, running, difficulty_timer
     if not running: return
@@ -120,6 +121,7 @@ def update(dt):
     player['x']=max(player['w']/2,min(STAGE_W-player['w']/2,player['x']))
     player['y']=max(player['h']/2,min(STAGE_H-player['h']/2,player['y']))
 
+    # 총알 이동 및 점수
     for b in list(bullets):
         b['x']+=b['vx']
         b['y']+=b['vy']
@@ -127,25 +129,27 @@ def update(dt):
             bullets.remove(b)
             score+=1
 
-    # 충돌 체크
+    # 충돌 체크 (좌우 20%, 상하 50%)
     for b in bullets:
         rx=player['x']-player['w']/2
         ry=player['y']-player['h']/2
         closest_x=max(rx,min(b['x'],rx+player['w']))
         closest_y=max(ry,min(b['y'],ry+player['h']))
-        dx=(b['x']-closest_x)*0.2  # 좌우 20%
-        dy=(b['y']-closest_y)*0.5  # 위아래 50%
+        dx=(b['x']-closest_x)*0.2
+        dy=(b['y']-closest_y)*0.5
         if dx*dx+dy*dy<=b['r']*b['r']:
             running=False
             show_game_over()
             break
 
+# 게임 그리기
 def draw():
     ctx.clearRect(0,0,STAGE_W,STAGE_H)
-    if bg_loaded: ctx.drawImage(bg_img,0,0,STAGE_W,STAGE_H)
+    if bg_loaded:
+        ctx.drawImage(bg_img,0,0,STAGE_W,STAGE_H)
     if player_loaded:
         ratio=player_img.naturalWidth/player_img.naturalHeight
-        draw_w=player['w']  # 1/2 크기
+        draw_w=player['w']/2  # 1/2 크기
         draw_h=draw_w/ratio
         ctx.drawImage(player_img,player['x']-draw_w/2,player['y']-draw_h/2,draw_w,draw_h)
     for b in bullets:
@@ -183,18 +187,19 @@ def on_keyup(ev):
 document.bind('keydown',on_keydown)
 document.bind('keyup',on_keyup)
 
-# 터치
+# 터치 이동
 def on_touch(ev):
     if not running: return
     touch = ev.touches[0]
     rect = CANVAS.getBoundingClientRect()
     player['x'] = (touch.clientX - rect.left) * (STAGE_W / rect.width)
     player['y'] = (touch.clientY - rect.top) * (STAGE_H / rect.height)
-    ev.preventDefault()  # 터치 시 페이지 스크롤 방지
+    ev.preventDefault()  # 페이지 스크롤 방지
 
 document['game'].bind('touchstart', on_touch, passive=False)
 document['game'].bind('touchmove', on_touch, passive=False)
 
+# 게임 시작
 def start_game(ev=None):
     global running, bullets, score, last_spawn, difficulty_timer, player
     bullets=[]
@@ -207,6 +212,7 @@ def start_game(ev=None):
 
 document['start'].bind('click',start_game)
 
+# 게임 오버
 def show_game_over():
     ctx.fillStyle='rgba(0,0,0,0.7)'
     ctx.fillRect(0,0,STAGE_W,STAGE_H)
@@ -217,6 +223,7 @@ def show_game_over():
     ctx.font='24px sans-serif'
     ctx.fillText(f'최종 점수: {score}',STAGE_W/2,STAGE_H/2+10)
 
+# 모든 이미지 로딩 확인 후 루프 시작
 def all_images_loaded():
     return player_img.complete and bullet_img.complete and bg_img.complete
 
